@@ -75,9 +75,6 @@ struct Transducer{
             (this->table)[i].resize(inputLetters+1);
         }
         
-        // basically if it's the first one then
-        
-//        (this->table)[A].resize(inputLetters+1);
         (this->table)[A][inpchar].push_back({outchar, B});
         
     }
