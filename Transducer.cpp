@@ -75,6 +75,9 @@ struct Transducer{
             (this->table)[i].resize(inputLetters+1);
         }
         
+        // basically if it's the first one then
+        
+//        (this->table)[A].resize(inputLetters+1);
         (this->table)[A][inpchar].push_back({outchar, B});
         
     }
@@ -409,8 +412,6 @@ struct Transducer{
         
     }
     
-    // TODO: Automata complement
-    
     Transducer complement(){
         
         // The final determinization produces a complete dfa
@@ -432,6 +433,14 @@ struct Transducer{
         return complement;
     }
     
+    Transducer convert(int type_in, int type_out){
+        
+        Transducer convert = Transducer(5, 5);
+        // The function requires the specification of the 2 transducer types.
+        
+        return convert;
+    }
+    
     // Language equality check
     
     bool languageEquality(){
@@ -439,6 +448,10 @@ struct Transducer{
         //finding an isomorphism between finite automata;
         
         return true;
+        
+    }
+    
+    void getElements(){
         
     }
     
@@ -548,6 +561,93 @@ Transducer augmentedAudioactiveT(){
     }
     
     return aat;
+}
+
+Transducer splitRec(){
+    
+    auto aat = augmentedAudioactiveT().minimize();
+    
+    //Convert to a recogniser
+    auto split = aat.convert(2, 0).minimize();
+    
+    for(int i = 0; i < 9; ++i){
+        split = aat.compose(split).minimize();
+    }
+    
+    return split;
+}
+
+Transducer irredFactorRec(){
+
+    auto sm = singlemark();
+    auto sr = splitRec();
+    auto iwr = sm.compose(sr).minimize().complement();
+    
+    return iwr;
+}
+
+Transducer irredFactorDer(){
+    
+    auto mmt = multimark();
+    // Convert to a filter
+    auto sf = splitRec().convert("Filt");
+    auto sc = scissors();
+    auto isf = irredFactorRec().convert("Filt");
+    
+    // definition of irredFactorDer
+    auto ifd = mmt.compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
+    
+    return ifd;
+}
+
+// Theorem Proofs
+
+void CosmologicalTheorem(){
+    
+    auto aat = augmentedAudioactiveT().minimize();
+    
+    // Multimark transducer
+    auto mmt = multimark();
+    // Split filter
+    auto sf = splitRec().convert("Filt");
+    // Scissors
+    auto sc = scissors();
+    // Irreducible string filter
+    auto isf = irredFactorRec().convert("Filt");
+
+    auto factorizer = irredFactorDer().minimize();
+
+    auto T = aat.compose(factorizer);
+
+    auto Tn = T.convert("Gen").minimize();
+
+    auto Tn_prev = Tn;
+    
+    int counter = 0;
+    
+    while(true){
+        
+        counter++;
+        
+        Tn = Tn.compose(aat).minimize().compose(mmt).minimize().compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
+        
+        // preliminary check if the number of nodes is the same
+        
+        if(Tn.table.size() == Tn_prev.table.size()){
+            if(Tn.languageEquality(Tn_prev)){
+                cout << "The language stabilizes after: " << counter << " iterations" << endl;
+                break;
+            }
+        }
+        
+        Tn_prev = Tn;
+    }
+    
+    auto[paths, words] = Tn.getElements();
+    
+    cout << "Number of elements: " << words.size() << endl;
+    
+    return words;
 }
 
 int main(int argc, const char * argv[]){
