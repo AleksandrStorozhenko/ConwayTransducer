@@ -444,20 +444,110 @@ struct Transducer{
     
 };
 
+// Implementation of the transducers used in the proof.
+
 Transducer multimark(){
     
     vector<bool> sn {true};
     vector<bool> fn {true};
     
-    Transducer multimark = Transducer(1, 5, 6, sn, fn);
+    Transducer multimark = Transducer(1, 4, 5, sn, fn);
     
     for(int i = 1; i <= multimark.inputLetters; i++){
         multimark.addEdge(i, i, 0, 0);
     }
     
-    multimark.addEdge(0, 6, 0, 0);
+    multimark.addEdge(0, 5, 0, 0);
     
     return multimark;
+}
+
+Transducer singlemark(){
+    
+    vector<bool> sn {true, false, false, false};
+    vector<bool> fn {true, false, false, true};
+    
+    Transducer singlemark = Transducer(4, 4, 5, sn, fn);
+    
+    for(int i = 1; i <= singlemark.inputLetters; i++){
+        singlemark.addEdge(i, i, 0, 1);
+        singlemark.addEdge(i, i, 1, 1);
+        singlemark.addEdge(i, i, 2, 2);
+        singlemark.addEdge(i, i, 2, 3);
+    }
+    
+    singlemark.addEdge(0, 5, 1, 2);
+    
+    return singlemark;
+}
+
+Transducer scissors(){
+    
+    vector<bool> sn {true, false, false};
+    vector<bool> fn {false, false, true};
+    
+    Transducer scissors = Transducer(3, 5, 4, sn, fn);
+    
+    for(int i = 1; i <= scissors.inputLetters; i++){
+        scissors.addEdge(i, 0, 0, 0);
+        scissors.addEdge(i, 0, 2, 2);
+        if(i != 5){
+            scissors.addEdge(i, 0, 1, 1);
+        }
+    }
+    
+    scissors.addEdge(5, 0, 0, 1);
+    scissors.addEdge(5, 0, 1, 2);
+    
+    return scissors;
+}
+
+Transducer audioactiveT(){
+    
+    // it makes sense to place them first i.e
+    vector<bool> sn;
+    sn.resize(24);
+    for(int i = 0; i <= 3; ++i){
+        sn[i] = true;
+    }
+    
+    Transducer audioactiveT = Transducer(24, 4, 4, sn, sn);
+    
+    for(int c = 1; c <= 4; ++c){
+        
+        audioactiveT.addEdge(c, 1, c - 1, 5 * (c-1) + 1 + 3);
+        audioactiveT.addEdge(0, c, 5 * (c-1) + 1 + 3, 5 * (c-1) + 1 + 4);
+        
+        audioactiveT.addEdge(c, 2, c - 1, 5 * (c-1) + 1 + 5);
+        audioactiveT.addEdge(c, c, 5 * (c-1) + 1 + 5, 5 * (c-1) + 1 + 4);
+        
+        audioactiveT.addEdge(c, 3, c - 1, 5 * (c-1) + 1 + 6);
+        audioactiveT.addEdge(c, c, 5 * (c-1) + 1 + 6, 5 * (c-1) + 1 + 7);
+        audioactiveT.addEdge(c, 0, 5 * (c-1) + 1 + 7, 5 * (c-1) + 1 + 4);
+    }
+    
+    for(int c = 1; c <= 4; ++c){
+        for(int i = 0; i <= 3; ++i){
+            if(i != c-1){
+                audioactiveT.addEdge(0, 0, 5 * (c-1) + 1 + 4, i);
+            }
+        }
+    }
+    
+    return audioactiveT;
+}
+
+Transducer augmentedAudioactiveT(){
+    
+    Transducer aat = audioactiveT();
+    
+    aat.inputLetters = 5; aat.outputLetters = 5;
+    
+    for(int i = 0; i <= 3; i++){
+        aat.addEdge(5, 5, i, i);
+    }
+    
+    return aat;
 }
 
 int main(int argc, const char * argv[]){
