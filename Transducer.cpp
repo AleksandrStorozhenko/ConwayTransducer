@@ -5,6 +5,7 @@
 #include <map>
 #include <algorithm>
 #include <string>
+#include <assert.h>
 
 using namespace std;
 
@@ -184,7 +185,7 @@ struct Transducer{
         return transpose;
     }
     
-    // Traversal & Element Retrieval Backtracking Functions
+    // Traversal
     
     void backtrack(string word, int node, string &out, set<string> &res){
         
@@ -227,6 +228,59 @@ struct Transducer{
 
         return res;
     }
+    
+    // Element Retrieval Backtrack Function
+    
+//    void dfs(int node, vector<int> path, string &word, set<vector<int>> &res_path, set<string> &res_word){
+//
+//        // This is a particular case, in general we need to be able to continue
+//        if(count((this->finalNodes).begin(), (this->finalNodes).end(), node)){
+//
+//            res_path.insert(path);
+//            res_word.insert(word);
+//
+//            // Keep exploring until you exhaust all the possible paths
+//            int total_edges = 0;
+//
+//            for(int i = 0; i < (this->table).size(); i++){
+//                total_edges += (this->table)[i].size();
+//                if(total_edges) break;
+//            }
+//
+//            if(!total_edges) return;
+//        }
+//
+//        for((char_inp, char_out, next_node) in self.G[node]){
+//            if next_node in visited:
+//                continue
+//
+//            path.append(next_node)
+//            word += char_out
+//            visited.add(next_node)
+//
+//            dfs(next_node, path, word)
+//
+//            visited.remove(next_node)
+//            word = word[:-1]
+//            path.pop()
+//        }
+//    }
+//
+//    set<string> getElements(){
+//
+//        // Backtrack through the graph to get the elements (There are no cycles), so we just find all the possible paths through the graph
+//
+//        set<vector<int>> res_path;
+//        set<string> res_word;
+//
+//        for(auto s: this -> startNodes){
+//            set<int> visited;
+//            vector<int> path {s};
+//            dfs(s, path, "");
+//        }
+//
+//        return res_word;
+//    }
     
     // Determinization of Recognisers
     
@@ -288,6 +342,12 @@ struct Transducer{
         for(int c = 1; c <= B.inputLetters; c++){
             
             vector<int> U = this->nextSet(S, c);
+            
+            // check if all the elements of U are unique.
+            set<int> USet( U.begin(), U.end());
+            U.assign(USet.begin(), USet.end());
+            
+            assert(USet.size() == U.size());
             
             sort(U.begin(), U.end());
             
@@ -473,8 +533,6 @@ struct Transducer{
         
         Transducer convert = Transducer((this -> table).size(), this->inputLetters, this->inputLetters, this->startNodes, this->finalNodes);
         
-        //Todo: There's a memory allocation problem
-        
         for(int i = 0; i < (this->table).size(); i++){
             for(int j = 0; j <= convert.inputLetters; j++){
                 for(auto edge: (this -> table)[i][j]){
@@ -490,8 +548,6 @@ struct Transducer{
         
         Transducer convert = Transducer((this -> table).size(), this->inputLetters, 0, this->startNodes, this->finalNodes);
         
-        //Todo: There's a memory allocation problem
-        
         for(int i = 0; i < (this->table).size(); i++){
             for(int j = 0; j <= convert.inputLetters; j++){
                 for(auto edge: (this -> table)[i][j]){
@@ -501,6 +557,21 @@ struct Transducer{
         }
         
         return convert;
+    }
+    
+    Transducer invert(){
+        
+        Transducer invert = Transducer((this -> table).size(), this->outputLetters, this->inputLetters, this->startNodes, this->finalNodes);
+        
+        for(int i = 0; i < (this->table).size(); i++){
+            for(int j = 0; j <= this -> inputLetters; j++){
+                for(auto edge: (this -> table)[i][j]){
+                    invert.addEdge(edge.first, j, i, edge.second);
+                }
+            }
+        }
+        
+        return invert;
     }
     
     bool languageEquality(){
@@ -527,7 +598,7 @@ Transducer multimark(){
     vector<int> sn {0};
     vector<int> fn {0};
     
-    Transducer multimark = Transducer(1, 4, 5, sn, fn);
+    Transducer multimark = Transducer(1, 5, 5, sn, fn);
     
     for(int i = 1; i <= multimark.inputLetters; i++){
         multimark.addEdge(i, i, 0, 0);
@@ -568,7 +639,7 @@ Transducer scissors(){
         scissors.addEdge(i, 0, 0, 0);
         scissors.addEdge(i, 0, 2, 2);
         if(i != 5){
-            scissors.addEdge(i, 0, 1, 1);
+            scissors.addEdge(i, i, 1, 1);
         }
     }
     
@@ -648,12 +719,12 @@ Transducer irredFactorRec(){
 Transducer irredFactorDer(){
 
     auto mmt = multimark();
-    // Convert to a filter
     auto sf = splitRec().RtF();
     auto sc = scissors();
     auto isf = irredFactorRec().RtF();
 
     // definition of irredFactorDer - There's still the problem of minimization of derivators
+    
     auto ifd = mmt.compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
 
     return ifd;
@@ -663,87 +734,81 @@ Transducer irredFactorDer(){
 
 Transducer Theorem2(){
     
-    Transducer aat = augmentedAudioactiveT();
-    Transducer aatCompRec = aat.minimize();
+    auto aat = augmentedAudioactiveT();
+    auto split = aat.FtR().minimize();
     
     for(int i = 0; i < 9; i++){
-        aatCompRec = aat.compose(aatCompRec).minimize();
+        split = aat.compose(split).minimize();
     }
     
-    return aatCompRec;
+    return split;
 
 }
 
-//void CosmologicalTheorem(){
-//
-//    auto aat = augmentedAudioactiveT().minimize();
-//
-//    // Multimark transducer
-//    auto mmt = multimark();
-//    // Split filter
-//    auto sf = splitRec().convert("Filt");
-//    // Scissors
-//    auto sc = scissors();
-//    // Irreducible string filter
-//    auto isf = irredFactorRec().convert("Filt");
-//
-//    auto factorizer = irredFactorDer().minimize();
-//
-//    auto T = aat.compose(factorizer);
-//
-//    auto Tn = T.convert("Gen").minimize();
-//
-//    auto Tn_prev = Tn;
-//
-//    int counter = 0;
-//
-//    while(true){
-//
-//        counter++;
-//
-//        Tn = Tn.compose(aat).minimize().compose(mmt).minimize().compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
-//
-//        // preliminary check if the number of nodes is the same
-//
-//        if(Tn.table.size() == Tn_prev.table.size()){
-//            if(Tn.languageEquality(Tn_prev)){
-//                cout << "The language stabilizes after: " << counter << " iterations" << endl;
-//                break;
-//            }
-//        }
-//
-//        Tn_prev = Tn;
-//    }
-//
-//    auto[paths, words] = Tn.getElements();
-//
-//    cout << "Number of elements: " << words.size() << endl;
-//
-//    return words;
-//}
+set<string> CosmologicalTheorem(){
+
+    auto aat = augmentedAudioactiveT();
+
+    auto factorizer = irredFactorDer();
+    
+    // Deal with the inverted edges
+    
+    auto T = aat.compose(factorizer).minimize();
+    
+    // This is supposed to be the generator - transposed to a recogniser
+    auto Tn = T.invert().FtR().minimize();
+    
+    auto Tn_prev = Tn;
+    
+    for(int i = 0; i < 26; i++){
+        
+        cout << "Iteration: " << i << endl;
+        
+        // Test which one is faster
+        auto T_inv = T.invert();
+        Tn = T_inv.compose(Tn).minimize();
+//        Tn = fact_inv.compose(aat_inv).minimize().compose(Tn).minimize();
+        
+        if(Tn_prev.table.size() == Tn.table.size()){
+            
+            // perform the equivalence check
+            cout << "Potential Isomorphism" << endl;
+            
+        }
+        
+        Tn_prev = Tn;
+    }
+    
+    // for the final step what do we do ?
+    
+    set<string> a {"placeholder for elements"};
+    return a;
+}
 
 int main(int argc, const char * argv[]){
     
     auto start = chrono::steady_clock::now();
-
-    auto sm = singlemark().minimize();
-    cout << sm.table.size() << endl;
     
-    auto sr = splitRec().minimize();
+    auto sr = splitRec();
     
-    cout << sr.table.size() << endl;
-
-    // we can skip the minimizaton step
-    auto iwr = sm.compose(sr);
+    // examples
     
-    cout << iwr.table.size() << endl;
+    auto res = sr.traverse("11132513211");
     
-    iwr = iwr.complement();
-//
-//    for(auto el: res){
-//        cout << el << endl;
-//    }
-
+    if(res.size()){
+        cout << "Valid" << endl;
+    }else{
+        cout << "Invalid" << endl;
+    }
+    
+    res = sr.traverse("11135213211");
+    
+    if(res.size()){
+        cout << "Valid" << endl;
+    }else{
+        cout << "Invalid" << endl;
+    }
+    
     auto end = chrono::steady_clock::now();
 
     // Store the time difference between start and end
