@@ -69,7 +69,7 @@ struct Transducer{
     // Separate the process of adding a new node from adding an edge
     void addEdge(int inpchar, int outchar, int A, int B){
         
-        // check that both A and B are present in the array
+        // check that both A and B are present in the array;
     
         if(max(A, B) > ((int)(this->table).size() - 1)){
             (this->table).resize(max(A,B)+1);
@@ -231,56 +231,59 @@ struct Transducer{
     
     // Element Retrieval Backtrack Function
     
-//    void dfs(int node, vector<int> path, string &word, set<vector<int>> &res_path, set<string> &res_word){
-//
-//        // This is a particular case, in general we need to be able to continue
-//        if(count((this->finalNodes).begin(), (this->finalNodes).end(), node)){
-//
-//            res_path.insert(path);
-//            res_word.insert(word);
-//
-//            // Keep exploring until you exhaust all the possible paths
-//            int total_edges = 0;
-//
-//            for(int i = 0; i < (this->table).size(); i++){
-//                total_edges += (this->table)[i].size();
-//                if(total_edges) break;
-//            }
-//
-//            if(!total_edges) return;
-//        }
-//
-//        for((char_inp, char_out, next_node) in self.G[node]){
-//            if next_node in visited:
-//                continue
-//
-//            path.append(next_node)
-//            word += char_out
-//            visited.add(next_node)
-//
-//            dfs(next_node, path, word)
-//
-//            visited.remove(next_node)
-//            word = word[:-1]
-//            path.pop()
-//        }
-//    }
-//
-//    set<string> getElements(){
-//
-//        // Backtrack through the graph to get the elements (There are no cycles), so we just find all the possible paths through the graph
-//
-//        set<vector<int>> res_path;
-//        set<string> res_word;
-//
-//        for(auto s: this -> startNodes){
-//            set<int> visited;
-//            vector<int> path {s};
-//            dfs(s, path, "");
-//        }
-//
-//        return res_word;
-//    }
+    void dfs(int node, vector<int> path, string &word, set<vector<int>> &res_path, set<string> &res_word, set<int> &visited){
+
+        // This is a particular case, in general we need to be able to continue
+        if(count((this->finalNodes).begin(), (this->finalNodes).end(), node)){
+
+            res_path.insert(path);
+            res_word.insert(word);
+
+            // Keep exploring until you exhaust all the possible paths
+            int total_edges = 0;
+
+            for(int i = 0; i < (this->table).size(); i++){
+                total_edges += (this->table)[i].size();
+                if(total_edges) break;
+            }
+
+            if(!total_edges) return;
+        }
+
+        for(int i = 0; i <= this->inputLetters; i++){
+            for(auto edge: (this->table)[node][i]){
+                
+                if(visited.find(edge.second) != visited.end()) continue;
+                
+                path.push_back(edge.second);
+                word += edge.first;
+                visited.insert(edge.second);
+                
+                dfs(edge.second, path, word, res_path, res_word, visited);
+                
+                visited.erase(edge.second);
+                word = word.substr(0, word.size() - 1);
+                path.pop_back();
+            }
+        }
+    }
+
+    set<string> getElements(){
+
+        // Backtrack through the graph to get the elements (There are no cycles), so we just find all the possible paths through the graph
+
+        set<vector<int>> res_path;
+        set<string> res_word;
+
+        for(auto s: this -> startNodes){
+            set<int> visited;
+            vector<int> path {s};
+            string w = "";
+            dfs(s, path, w, res_path, res_word, visited);
+        }
+
+        return res_word;
+    }
     
     // Determinization of Recognisers
     
@@ -747,7 +750,7 @@ Transducer Theorem2(){
 
 set<string> CosmologicalTheorem(){
 
-    auto aat = augmentedAudioactiveT();
+    auto aat = audioactiveT();
 
     auto factorizer = irredFactorDer();
     
@@ -764,8 +767,13 @@ set<string> CosmologicalTheorem(){
         
         cout << "Iteration: " << i << endl;
         
+        cout << "Size: " << Tn.table.size() << endl;
+        
         // Test which one is faster
         auto T_inv = T.invert();
+        
+        cout << "T_inv size: "<< T_inv.table.size() << endl;
+        
         Tn = T_inv.compose(Tn).minimize();
 //        Tn = fact_inv.compose(aat_inv).minimize().compose(Tn).minimize();
         
@@ -779,35 +787,24 @@ set<string> CosmologicalTheorem(){
         Tn_prev = Tn;
     }
     
-    // for the final step what do we do ?
+    Tn = Tn.invert();
     
-    set<string> a {"placeholder for elements"};
-    return a;
+    set<string> words = Tn.getElements();
+    
+    cout << "Number of Elements: " << words.size() << endl;
+    
+    for(auto word: words){
+        cout << word << endl;
+    }
+    
+    return words;
 }
 
 int main(int argc, const char * argv[]){
     
     auto start = chrono::steady_clock::now();
     
-    auto sr = splitRec();
-    
-    // examples
-    
-    auto res = sr.traverse("11132513211");
-    
-    if(res.size()){
-        cout << "Valid" << endl;
-    }else{
-        cout << "Invalid" << endl;
-    }
-    
-    res = sr.traverse("11135213211");
-    
-    if(res.size()){
-        cout << "Valid" << endl;
-    }else{
-        cout << "Invalid" << endl;
-    }
+    CosmologicalTheorem();
     
     auto end = chrono::steady_clock::now();
 
@@ -817,4 +814,3 @@ int main(int argc, const char * argv[]){
     cout << chrono::duration <double, milli> (diff).count() << " ms" << endl;
     
 }
-
