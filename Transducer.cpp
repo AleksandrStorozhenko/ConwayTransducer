@@ -4,6 +4,7 @@
 #include <set>
 #include <map>
 #include <algorithm>
+#include <string>
 
 using namespace std;
 
@@ -13,10 +14,12 @@ struct Transducer{
     
     int inputLetters, outputLetters;
     
-    vector<bool> startNodes, finalNodes;
+    // at this point we might as well just use sets
+    vector<int> startNodes, finalNodes;
     
     vector<vector<vector<pair<int, int>>>> table;
 
+    // Use initializer lists for the constructors + Also pass optional parameters to condense all the constructors into 1.
     Transducer(int inputLetters, int outputLetters){
         // 0 -> e; 1 - 1; 2 - 2; 3 - 3; 4 - n; 5 - .;
         this -> inputLetters = inputLetters;
@@ -24,7 +27,7 @@ struct Transducer{
         
     };
 
-    Transducer(int stateCount, int inputLetters, int outputLetters, vector<bool> &startNodes){
+    Transducer(int stateCount, int inputLetters, int outputLetters, vector<int> &startNodes){
         this -> inputLetters = inputLetters;
         this -> outputLetters = outputLetters;
         
@@ -36,14 +39,15 @@ struct Transducer{
         
         this -> startNodes = startNodes;
         
-        vector<bool> finalNodes;
-        finalNodes.resize(stateCount);
+        vector<int> finalNodes;
         
         this -> finalNodes = finalNodes;
     };
     
-    Transducer(int stateCount, int inputLetters, int outputLetters, vector<bool> &startNodes, vector<bool> &finalNodes){
+    Transducer(int stateCount, int inputLetters, int outputLetters, vector<int> &startNodes, vector<int> &finalNodes){
+        
         // 0 -> e; 1 - 1; 2 - 2; 3 - 3; 4 - n; 5 - .;
+        
         this -> inputLetters = inputLetters;
         this -> outputLetters = outputLetters;
         
@@ -61,6 +65,7 @@ struct Transducer{
 
     };
     
+    // Separate the process of adding a new node from adding an edge
     void addEdge(int inpchar, int outchar, int A, int B){
         
         // check that both A and B are present in the array
@@ -76,8 +81,7 @@ struct Transducer{
         }
         
         // basically if it's the first one then
-        
-//        (this->table)[A].resize(inputLetters+1);
+        // (this->table)[A].resize(inputLetters+1);
         (this->table)[A][inpchar].push_back({outchar, B});
         
     }
@@ -88,13 +92,12 @@ struct Transducer{
         auto X = (this -> table).size();
         auto Y = T1.table.size();
         
-        vector<bool> initialNodes;
-        initialNodes.resize(X*Y);
+        vector<int> initialNodes;
         
         for(auto node1: this->startNodes){
             for(auto node2: T1.startNodes){
                 auto pos = node2 * X + node1;
-                initialNodes[pos] = true;
+                initialNodes.push_back(pos);
             }
         }
         
@@ -147,22 +150,20 @@ struct Transducer{
             }
         }
         
-        //TODO: Add Final Nodes
-        
-        vector<bool> finalNodes;
-        finalNodes.resize(X*Y);
-
         for(int i = 0; i < X; i++){
             for(int j = 0; j < Y; j++){
+                
                 // the trsdComp.table[j * X + i] entry is not necessarily defined;
-                if((this->finalNodes)[i] && T1.finalNodes[j] && trsdComp.table[j * X + i].size() != 0){
-                    finalNodes[j * X + i] = true;
+                
+                if(count((this->finalNodes).begin(), (this->finalNodes).end(), i) &&
+                   count(T1.finalNodes.begin(), T1.finalNodes.end(), j) &&
+                   trsdComp.table[j * X + i].size() != 0){
+                    trsdComp.finalNodes.push_back(j * X + i);
                 }
+                
             }
         }
-        
-        //TODO: Condense the number of states
-        
+
         return trsdComp;
     }
     
@@ -183,84 +184,98 @@ struct Transducer{
         return transpose;
     }
     
-    // Determinization of Recognisers
+    // Traversal & Element Retrieval Backtracking Functions
     
-    vector<bool> next(int node, int letter){
+    void backtrack(string word, int node, string &out, set<string> &res){
         
-        vector<bool> nextStates;
-        
-        nextStates.resize((this->table).size());
-        
-        for(auto el: (this->table)[node][letter]){
-            nextStates[el.second] = true;
+        if(word.size() == 0){
+            if(count((this->finalNodes).begin(), (this->finalNodes).end(), node)){
+                res.insert(out);
+            }
+            return;
         }
         
-        return nextStates;
+        for(auto edge: (this->table)[node][(int)(word[0]-48)]){
+            
+            if(((int)(word[0])-48 == edge.first) and (edge.first == 0) && node == edge.second){
+                continue;
+            }
+            
+            if(edge.first != 0){
+                out += to_string(edge.first);
+            }
+        
+            backtrack(word.substr(1), edge.second, out, res);
+            backtrack("0" + word.substr(1), edge.second, out, res);
+            
+            if(edge.first != 0){
+                out = out.substr(0, out.size()-1);
+            }
+        }
     }
     
-    vector<bool> nextSet(vector<bool> &S, int letter){
+    set<string> traverse(string word){
+        
+        set<string> res;
+        string out = "";
+        
+        for(auto sn: this->startNodes){
+            
+            this->backtrack(word, sn, out, res);
+            this->backtrack("0" + word, sn, out, res);
+        }
+
+        return res;
+    }
+    
+    // Determinization of Recognisers
+    
+    void next(int node, int letter, vector<int> &nextStates){
+        
+        for(auto el: (this->table)[node][letter]){
+            nextStates.push_back(el.second);
+        }
+    
+    }
+    
+    vector<int> nextSet(vector<int> &S, int letter){
 
         // S - set of states; T - set of next states;
 
-        vector<bool> T;
-        T.resize((this->table).size());
+        vector<int> T;
         
-        for(int q = 0; q < S.size(); q++){
-            
-            if(S[q]){
-                vector<bool> nextStates = (this->next(q, letter));
-                
-                for(int i = 0; i < nextStates.size(); i++){
-                    if(T[i] || nextStates[i]){
-                        T[i] = true;
-                    }
-                }
-            }
+        for(auto q: S){
+            this->next(q, letter, T);
         }
         
         return this->closure(T);
     }
     
-    vector<bool> closure(vector<bool> &t){
+    vector<int> closure(vector<int> closure){
         
-        //closure should be a copy of t i.e passed by value, rather than by reference
-        vector<bool> closure = t;
-        
-        // iterate over the values to find a true
-        
-        int size = 0;
-        for(auto el: closure){
-            if(el){
-                size = 1;
-                break;
+        if(closure.size() != 0){
+            stack<int> S;
+            set<int> visited;
+            
+            for(auto el: closure){
+                S.push(el);
             }
-        }
-        
-        if(size == 0){
-            return closure;
-        }
-        
-        stack<int> S;
-        set<int> visited;
-        
-        for(auto el: closure){
-            S.push(el);
-        }
-        
-        while(!S.empty()){
             
-            int node = S.top();
-            S.pop();
-            visited.insert(node);
-            
-            for(auto e: (this->table)[node][0]){
+            while(!S.empty()){
                 
-                int out_node = e.second;
+                int node = S.top();
+                S.pop();
+                visited.insert(node);
                 
-                // if the element is not in visited
-                if (visited.find(out_node) == visited.end()){
-                    closure[out_node] = true;
-                    S.push(out_node);
+                for(auto e: (this->table)[node][0]){
+                    
+                    int out_node = e.second;
+                    
+                    // if the element is not in visited
+                    if (visited.find(out_node) == visited.end()){
+                        closure.push_back(out_node);
+                        S.push(out_node);
+                    }
                 }
             }
         }
@@ -268,35 +283,23 @@ struct Transducer{
         return closure;
     }
     
-    void explore(map<vector<bool>, int> &T, vector<bool> &S, Transducer &B){
+    void explore(map<vector<int>, int> &T, vector<int> &S, Transducer &B){
         
         for(int c = 1; c <= B.inputLetters; c++){
             
-            vector<bool> U = this->nextSet(S, c);
+            vector<int> U = this->nextSet(S, c);
             
-            // check if the key is already present in the T map
-            
-            bool empty = true;
-            
-            for(int i = 0; i < U.size(); i++){
-                if(U[i]){
-                    empty = false;
-                    break;
-                }
-            }
-            
-            // Because we haven't yet set the size - edge case
+            sort(U.begin(), U.end());
             
             if(T.find(U) != T.end()){
 
-                // resizing of the vector table
                 if(T.size() > B.table.size()){
                     
+                    int temp = B.table.size();
+                    
                     B.table.resize(T.size());
-                    
-                    //TODO: This can be optimized
-                    
-                    for(int i = 0; i < B.table.size(); i++){
+                
+                    for(int i = temp; i < T.size(); i++){
                         B.table[i].resize(B.inputLetters + 1);
                     }
                 }
@@ -306,22 +309,20 @@ struct Transducer{
                 
                 T.insert({U, T.size()});
                 
-                // resizing of the vector table
                 if(T.size() > B.table.size()){
                     
+                    int temp = B.table.size();
                     B.table.resize(T.size());
                     
-                    //TODO: This can be optimized
                     
-                    for(int i = 0; i < B.table.size(); i++){
+                    for(int i = temp; i < T.size(); i++){
                         B.table[i].resize(B.inputLetters + 1);
                     }
                 }
                 
                 B.table[T.at(S)][c].push_back({0, T.at(U)});
-                
-                // this should technically ensure that U = {true, true} is only explored once
-                if(!empty){
+            
+                if(U.size() != 0){
                     this->explore(T, U, B);
                 }
             }
@@ -332,57 +333,92 @@ struct Transducer{
         
         Transducer B = Transducer(this->inputLetters, this->outputLetters);
         
-        vector<bool> I = this -> closure(this -> startNodes);
+        vector<int> I = this -> closure(this -> startNodes);
         
-        map<vector<bool>, int> T;
+        sort(I.begin(), I.end());
+        
+        map<vector<int>, int> T;
         T.insert({I, T.size()});
         
         this->explore(T, I, B);
         
         // Start & Final Nodes Specification
         
-        vector<bool> startNodes, finalNodes;
-        
         if(B.table.size()){
             
-            startNodes.resize(B.table.size());
-            finalNodes.resize(B.table.size());
-            
-            startNodes[T.at(I)] = true;
-            B.startNodes = startNodes;
+            B.startNodes.push_back(T.at(I));
             
             for (const auto &el : T) {
                 for(int i = 0; i < (this->finalNodes).size(); i++){
-                    if(el.first[i] && (this->finalNodes)[i]){
-                        finalNodes[el.second] = true;
+                    if(count(el.first.begin(), el.first.end(), i) && count((this->finalNodes).begin(), (this->finalNodes).end(), i)){
+                        B.finalNodes.push_back(el.second);
                     }
                 }
             }
-            
-            B.finalNodes = finalNodes;
         }
         
         return B;
     }
     
-    // Traversal (Helps with testing)
-    
-    void traverse(){
-        
-        // A simple backtracking function with the purpose of finding all the possible words in the path
-        
-    }
-    
     // Minimization of Recognisers
     
-    Transducer minimize(){
-    
-        auto rev1 = this -> transpose();
-        auto det1 = rev1.determinize();
-        auto rev2 = det1.transpose();
-        auto det2 = rev2.determinize();
+    Transducer mergeAlph(){
+
+        int newAlph = ((this -> inputLetters) + 1) * ((this -> outputLetters) + 1) - 1;
         
-        return det2;
+        auto rec = Transducer((this -> table).size(), newAlph, 0, this -> startNodes, this -> finalNodes);
+        
+        for(int i = 0; i < (this -> table).size(); i++){
+            for(int j = 0; j <= this -> inputLetters; j++){
+                for(auto e: (this->table)[i][j]){
+                    rec.table[i][(e.first * (this->inputLetters + 1) + j)].push_back({0, e.second});
+                }
+            }
+        }
+
+        return rec;
+    }
+    
+    Transducer splitAlph(int inputLetters, int outputLetters){
+        
+        auto split = Transducer((this -> table).size(), inputLetters, outputLetters, this -> startNodes, this -> finalNodes);
+        
+        for(int i = 0; i < (this -> table).size(); i++){
+            for(int j = 0; j <= this -> inputLetters; j++){
+                for(auto e: (this->table)[i][j]){
+                    
+                    int inpLetter = j % (inputLetters + 1);
+                    
+                    int outLetter = j / (inputLetters + 1);
+                    
+                    split.table[i][inpLetter].push_back({outLetter, e.second});
+                }
+            }
+        }
+        
+        return split;
+    }
+    
+    Transducer minimize(){
+        
+        if(this -> outputLetters != 0){
+            // merge the alphabets
+            auto merge = this -> mergeAlph();
+            auto rev1 = merge.transpose();
+            auto det1 = rev1.determinize();
+            auto rev2 = det1.transpose();
+            auto det2 = rev2.determinize();
+            // split the alphabets
+            auto split = det2.splitAlph(this->inputLetters, this->outputLetters);
+            return split;
+        }
+        else{
+            auto rev1 = this -> transpose();
+            auto det1 = rev1.determinize();
+            auto rev2 = det1.transpose();
+            auto det2 = rev2.determinize();
+            return det2;
+        }
     }
     
     // Automata completion - The implemented algorithm already produces a complete dfa - The function is therefore not necessary for our implementation
@@ -419,12 +455,11 @@ struct Transducer{
         
         // Flip the final nodes vector;
         
-        vector<bool> invertFinal;
-        invertFinal.resize((this -> finalNodes).size());
+        vector<int> invertFinal;
         
-        for(int i = 0; i < invertFinal.size(); i++){
-            if(!(this -> finalNodes)[i]){
-                invertFinal[i] = true;
+        for(int i = 0; i < (complement.table).size(); i++){
+            if(count((complement.finalNodes).begin(), (complement.finalNodes).end(), i) == 0){
+                invertFinal.push_back(i);
             }
         }
         
@@ -433,15 +468,40 @@ struct Transducer{
         return complement;
     }
     
-    Transducer convert(int type_in, int type_out){
+    // It is sufficient to implement the conversion to a filter
+    Transducer RtF(){
         
-        Transducer convert = Transducer(5, 5);
-        // The function requires the specification of the 2 transducer types.
+        Transducer convert = Transducer((this -> table).size(), this->inputLetters, this->inputLetters, this->startNodes, this->finalNodes);
+        
+        //Todo: There's a memory allocation problem
+        
+        for(int i = 0; i < (this->table).size(); i++){
+            for(int j = 0; j <= convert.inputLetters; j++){
+                for(auto edge: (this -> table)[i][j]){
+                    convert.addEdge(j, j, i, edge.second);
+                }
+            }
+        }
         
         return convert;
     }
     
-    // Language equality check
+    Transducer FtR(){
+        
+        Transducer convert = Transducer((this -> table).size(), this->inputLetters, 0, this->startNodes, this->finalNodes);
+        
+        //Todo: There's a memory allocation problem
+        
+        for(int i = 0; i < (this->table).size(); i++){
+            for(int j = 0; j <= convert.inputLetters; j++){
+                for(auto edge: (this -> table)[i][j]){
+                    convert.addEdge(j, 0, i, edge.second);
+                }
+            }
+        }
+        
+        return convert;
+    }
     
     bool languageEquality(){
         
@@ -451,8 +511,10 @@ struct Transducer{
         
     }
     
-    void getElements(){
+    // Check if there's a cycle in the directed graph;
+    bool cycleCheck(){
         
+        return true;
     }
     
 };
@@ -461,8 +523,9 @@ struct Transducer{
 
 Transducer multimark(){
     
-    vector<bool> sn {true};
-    vector<bool> fn {true};
+    // intialize a vector of bool instead ...
+    vector<int> sn {0};
+    vector<int> fn {0};
     
     Transducer multimark = Transducer(1, 4, 5, sn, fn);
     
@@ -477,8 +540,8 @@ Transducer multimark(){
 
 Transducer singlemark(){
     
-    vector<bool> sn {true, false, false, false};
-    vector<bool> fn {true, false, false, true};
+    vector<int> sn {0};
+    vector<int> fn {0, 3};
     
     Transducer singlemark = Transducer(4, 4, 5, sn, fn);
     
@@ -496,8 +559,8 @@ Transducer singlemark(){
 
 Transducer scissors(){
     
-    vector<bool> sn {true, false, false};
-    vector<bool> fn {false, false, true};
+    vector<int> sn {0};
+    vector<int> fn {2};
     
     Transducer scissors = Transducer(3, 5, 4, sn, fn);
     
@@ -515,14 +578,12 @@ Transducer scissors(){
     return scissors;
 }
 
+// Use the traversal algorithm to check if the automata is doing what it is supposed to .;..
+
 Transducer audioactiveT(){
     
     // it makes sense to place them first i.e
-    vector<bool> sn;
-    sn.resize(24);
-    for(int i = 0; i <= 3; ++i){
-        sn[i] = true;
-    }
+    vector<int> sn {0, 1, 2, 3};
     
     Transducer audioactiveT = Transducer(24, 4, 4, sn, sn);
     
@@ -564,13 +625,11 @@ Transducer augmentedAudioactiveT(){
 }
 
 Transducer splitRec(){
+
+    auto aat = augmentedAudioactiveT();
+    auto split = aat.FtR().minimize();
     
-    auto aat = augmentedAudioactiveT().minimize();
-    
-    //Convert to a recogniser
-    auto split = aat.convert(2, 0).minimize();
-    
-    for(int i = 0; i < 9; ++i){
+    for(int i = 0; i < 9; i++){
         split = aat.compose(split).minimize();
     }
     
@@ -579,106 +638,112 @@ Transducer splitRec(){
 
 Transducer irredFactorRec(){
 
-    auto sm = singlemark();
-    auto sr = splitRec();
-    auto iwr = sm.compose(sr).minimize().complement();
+    auto sm = singlemark().minimize();
+    auto sr = splitRec().minimize();
+    auto iwr = sm.compose(sr).complement();
     
     return iwr;
 }
 
 Transducer irredFactorDer(){
-    
+
     auto mmt = multimark();
     // Convert to a filter
-    auto sf = splitRec().convert("Filt");
+    auto sf = splitRec().RtF();
     auto sc = scissors();
-    auto isf = irredFactorRec().convert("Filt");
-    
-    // definition of irredFactorDer
+    auto isf = irredFactorRec().RtF();
+
+    // definition of irredFactorDer - There's still the problem of minimization of derivators
     auto ifd = mmt.compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
-    
+
     return ifd;
 }
 
 // Theorem Proofs
 
-void CosmologicalTheorem(){
+Transducer Theorem2(){
     
-    auto aat = augmentedAudioactiveT().minimize();
+    Transducer aat = augmentedAudioactiveT();
+    Transducer aatCompRec = aat.minimize();
     
-    // Multimark transducer
-    auto mmt = multimark();
-    // Split filter
-    auto sf = splitRec().convert("Filt");
-    // Scissors
-    auto sc = scissors();
-    // Irreducible string filter
-    auto isf = irredFactorRec().convert("Filt");
-
-    auto factorizer = irredFactorDer().minimize();
-
-    auto T = aat.compose(factorizer);
-
-    auto Tn = T.convert("Gen").minimize();
-
-    auto Tn_prev = Tn;
-    
-    int counter = 0;
-    
-    while(true){
-        
-        counter++;
-        
-        Tn = Tn.compose(aat).minimize().compose(mmt).minimize().compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
-        
-        // preliminary check if the number of nodes is the same
-        
-        if(Tn.table.size() == Tn_prev.table.size()){
-            if(Tn.languageEquality(Tn_prev)){
-                cout << "The language stabilizes after: " << counter << " iterations" << endl;
-                break;
-            }
-        }
-        
-        Tn_prev = Tn;
+    for(int i = 0; i < 9; i++){
+        aatCompRec = aat.compose(aatCompRec).minimize();
     }
     
-    auto[paths, words] = Tn.getElements();
-    
-    cout << "Number of elements: " << words.size() << endl;
-    
-    return words;
+    return aatCompRec;
+
 }
 
+//void CosmologicalTheorem(){
+//
+//    auto aat = augmentedAudioactiveT().minimize();
+//
+//    // Multimark transducer
+//    auto mmt = multimark();
+//    // Split filter
+//    auto sf = splitRec().convert("Filt");
+//    // Scissors
+//    auto sc = scissors();
+//    // Irreducible string filter
+//    auto isf = irredFactorRec().convert("Filt");
+//
+//    auto factorizer = irredFactorDer().minimize();
+//
+//    auto T = aat.compose(factorizer);
+//
+//    auto Tn = T.convert("Gen").minimize();
+//
+//    auto Tn_prev = Tn;
+//
+//    int counter = 0;
+//
+//    while(true){
+//
+//        counter++;
+//
+//        Tn = Tn.compose(aat).minimize().compose(mmt).minimize().compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
+//
+//        // preliminary check if the number of nodes is the same
+//
+//        if(Tn.table.size() == Tn_prev.table.size()){
+//            if(Tn.languageEquality(Tn_prev)){
+//                cout << "The language stabilizes after: " << counter << " iterations" << endl;
+//                break;
+//            }
+//        }
+//
+//        Tn_prev = Tn;
+//    }
+//
+//    auto[paths, words] = Tn.getElements();
+//
+//    cout << "Number of elements: " << words.size() << endl;
+//
+//    return words;
+//}
+
 int main(int argc, const char * argv[]){
+    
     auto start = chrono::steady_clock::now();
-    
-    vector<bool> sn {true, false, false};
-    
-    vector<bool> fn {false, false, true};
-    
-    Transducer T1 = Transducer(3, 2, 0, sn, fn);
-    
-    T1.addEdge(1, 0, 0, 1);
-    T1.addEdge(2, 0, 0, 3);
 
-    T1.addEdge(1, 0, 1, 0);
-    T1.addEdge(2, 0, 1, 3);
-
-    T1.addEdge(1, 0, 2, 1);
-    T1.addEdge(2, 0, 2, 4);
-
-    T1.addEdge(1, 0, 3, 5);
-    T1.addEdge(2, 0, 3, 5);
-
-    T1.addEdge(1, 0, 4, 3);
-    T1.addEdge(2, 0, 4, 3);
-
-    T1.addEdge(1, 0, 5, 5);
-    T1.addEdge(2, 0, 5, 5);
+    auto sm = singlemark().minimize();
+    cout << sm.table.size() << endl;
     
-    auto dfa = T1.determinize();
+    auto sr = splitRec().minimize();
     
+    cout << sr.table.size() << endl;
+
+    // we can skip the minimizaton step
+    auto iwr = sm.compose(sr);
+    
+    cout << iwr.table.size() << endl;
+    
+    iwr = iwr.complement();
+//
+//    for(auto el: res){
+//        cout << el << endl;
+//    }
+
     auto end = chrono::steady_clock::now();
 
     // Store the time difference between start and end
@@ -687,3 +752,4 @@ int main(int argc, const char * argv[]){
     cout << chrono::duration <double, milli> (diff).count() << " ms" << endl;
     
 }
+
