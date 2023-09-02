@@ -1,4 +1,4 @@
-#include <algorithm>
+//#include <algorithm>
 #include <assert.h>
 #include <chrono>
 #include <iostream>
@@ -492,33 +492,6 @@ struct Transducer {
   // Automata completion - The implemented algorithm already produces a complete
   // dfa - The function is therefore not necessary for our implementation
 
-  Transducer complete() {
-
-    // the + 1 adds the dead state
-    auto completeDFA =
-        Transducer((int)(this->table).size() + 1, this->inputLetters,
-                   this->outputLetters, this->startNodes, this->finalNodes);
-
-    // check if there are any vectors of the form table[i][c] such that their
-    // size is 0 and then make a transition to the "dead-state S" from them;
-
-    int dead_state = (int)(this->table).size();
-
-    // add an extra state
-
-    for (int i = 0; i < (this->table).size(); i++) {
-      for (int c = 0; c <= this->inputLetters; c++) {
-        if (table[i][c].size() == 0) {
-          completeDFA.table[i][c].push_back({0, dead_state});
-        }
-      }
-    }
-
-    completeDFA.finalNodes = this->finalNodes;
-
-    return completeDFA;
-  }
-
   Transducer complement() {
 
     // The final determinization produces a complete dfa
@@ -591,15 +564,40 @@ struct Transducer {
     return invert;
   }
 
-  bool languageEquality() {
+  bool languageEquality(int u, int v, vector<int> &inverse1, vector<int> &inverse2, Transducer &T1) {
 
-    // finding an isomorphism between finite automata;
+    // u - node of the first graph;
+    // v - node of the second graph;
+      
+    inverse1[u] = v;
+    inverse2[v] = u;
 
+    for(int i = 1; i <= this->inputLetters; i++){
+        
+        int n1, n2;
+        
+        if(((this->table)[u][i].size() == (T1.table)[u][i].size())){
+            if((this->table)[u][i].size()){
+                n1 = (this->table)[u][i][0].second;
+                n2 = T1.table[v][i][0].second;
+            }else{
+                continue;
+            }
+        }
+        else{
+            return false;
+        }
+        
+        if(inverse1[n1] == -1 && inverse2[n2] == -1){
+            // if we simply return the language inequality directly then just whichever letter is executed first will fully determine
+            if(!languageEquality(n1, n2, inverse1, inverse2, T1)) return false;
+        }else if(inverse1[n1] != n2 || inverse2[n2] != n1){
+            return false;
+        }
+        
+    }
     return true;
   }
-
-  // Check if there's a cycle in the directed graph;
-  bool cycleCheck() { return true; }
 };
 
 // Implementation of the transducers used in the proof.
@@ -703,7 +701,6 @@ Transducer audioactiveT(bool augmented = false) {
   return audioactiveT;
 }
 
-
 Transducer splitRec() {
 
   auto aat = audioactiveT(true);
@@ -747,47 +744,68 @@ Transducer Theorem2() {
 
   auto aat = audioactiveT(true);
   auto split = aat.FtR().minimize();
+  auto splitPrev = split;
 
-  for (int i = 0; i < 9; i++) {
+  int count  = 0;
+  while(true){
+    cout << "Automata Iteration: " << count << " size " << split.table.size() << endl;
+    count++;
+    // check for language equality
     split = aat.compose(split).minimize();
+    
+    if(split.table.size() == splitPrev.table.size()){
+        vector<int> inverse1((split.table.size()), -1);
+        vector<int> inverse2((split.table.size()), -1);
+        if(split.languageEquality(0, 0, inverse1, inverse2, splitPrev)){
+            return split;
+        }
+    }
+    splitPrev = split;
   }
-
-  return split;
 }
 
 set<string> CosmologicalTheorem() {
 
-  auto aat = audioactiveT();
+  auto at = audioactiveT();
 
   auto factorizer = irredFactorDer();
 
   // Deal with the inverted edges
 
-  auto T = aat.compose(factorizer).minimize();
+  auto T = at.compose(factorizer).minimize();
 
   // This is supposed to be the generator - transposed to a recogniser
-  auto Tn = T.invert().FtR().minimize();
+  // Instead of directly inverting the T automata it might be easier to do
+    
+    // Test which one is faster
+    auto T_inv = T.invert();
+    
+  auto Tn = T_inv.FtR().minimize();
 
   auto Tn_prev = Tn;
 
-  for (int i = 0; i < 26; i++) {
+  int count = 1;
+  while(true){
 
-    cout << "Iteration: " << i << endl;
+    cout << "Iteration: " << count << endl;
+    count++;
 
     cout << "Size: " << Tn.table.size() << endl;
 
-    // Test which one is faster
-    auto T_inv = T.invert();
-
-    cout << "T_inv size: " << T_inv.table.size() << endl;
-
+    // Can still make it more efficient by
     Tn = T_inv.compose(Tn).minimize();
-    //        Tn = fact_inv.compose(aat_inv).minimize().compose(Tn).minimize();
 
     if (Tn_prev.table.size() == Tn.table.size()) {
-
-      // perform the equivalence check
-      cout << "Potential Isomorphism" << endl;
+        
+        cout << "Potential Isomorphism" << endl;
+        
+        if(Tn.table.size() == Tn_prev.table.size()){
+            vector<int> inverse1((Tn.table.size()), -1);
+            vector<int> inverse2((Tn.table.size()), -1);
+            if(Tn.languageEquality(0, 0, inverse1, inverse2, Tn_prev)){
+                break;
+            }
+        }
     }
 
     Tn_prev = Tn;
@@ -806,15 +824,32 @@ set<string> CosmologicalTheorem() {
   return words;
 }
 
+void derive(string &word, int iter){
+    
+    Transducer at = audioactiveT();
+    Transducer at_iter = audioactiveT();
+    
+    for(int i = 1; i < iter; i++){
+        at = at.compose(at_iter);
+    }
+    
+    auto res = at.traverse(word);
+    
+    for(auto el: res){
+        cout << el << endl;
+    }
+}
+
 int main(int argc, const char *argv[]) {
 
   auto start = chrono::steady_clock::now();
 
+  Theorem2();
   CosmologicalTheorem();
-
+    
   auto end = chrono::steady_clock::now();
 
-  // Store the time difference between start and end
+  // Store the time difference between start and end time
   auto diff = end - start;
 
   cout << chrono::duration<double, milli>(diff).count() << " ms" << endl;
