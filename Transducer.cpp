@@ -1,10 +1,10 @@
-//#include <algorithm>
 #include <assert.h>
 #include <chrono>
 #include <iostream>
 #include <map>
 #include <set>
 #include <stack>
+#include <queue>
 #include <string>
 #include <vector>
 
@@ -78,89 +78,94 @@ struct Transducer {
     (this->table)[A][inpchar].push_back({outchar, B});
   }
 
-  Transducer compose(Transducer &T1) {
-
-    // number of nodes in the 2 transducers
-    auto X = (this->table).size();
-    auto Y = T1.table.size();
-
-    vector<int> initialNodes;
-
-    for (auto node1 : this->startNodes) {
-      for (auto node2 : T1.startNodes) {
-        auto pos = node2 * X + node1;
-        initialNodes.push_back(pos);
+  Transducer compose(Transducer T1){
+    
+    map<pair<int, int>, int> T;
+    
+    Transducer trsdComp = Transducer(this->inputLetters, T1.outputLetters);
+    
+    queue<pair<int, int>> q;
+    set<pair<int, int>> visited;
+    
+    for(auto i: this->startNodes){
+      for(auto j: T1.startNodes){
+        
+        pair<int, int> state = {i , j};
+        
+        visited.insert(state);
+        T.insert({state, T.size()});
+        q.push(state);
       }
     }
+    
+    while(!q.empty()){
+      
+      auto &state = q.front();
+      q.pop();
+      
+      for(int i = 0; i <= this -> inputLetters; i++){
 
-    // Define the composed transducer - the size should be set to the product of
-    // the number of nodes XY;
-    Transducer trsdComp =
-        Transducer(X * Y, this->inputLetters, T1.outputLetters, initialNodes);
-
-    // iterate over the states of transducer 1
-    for (int A = 0; A < X; A++) {
-
-      // iterate over the letters of transducer 1
-      for (int c1 = 0; c1 <= this->inputLetters; c1++) {
-
-        for (auto edge1 : (this->table)[A][c1]) {
-
-          int c2 = edge1.first;
-          int B = edge1.second;
-
-          if (c2 == 0) {
-            for (int I = 0; I < Y; I++) {
-              //                            cout << "Add Case 1 Epsilon Edge:"
-              //                            << "("<< c1 << 0 << I*X + A << I*X +
-              //                            B << ")" << endl;
-              trsdComp.addEdge(c1, 0, I * X + A, I * X + B);
+        for (auto edge1 : (this->table)[state.first][i]) {
+          
+          for(auto edge2: T1.table[state.second][edge1.first]){
+            
+            pair<int, int> next = {edge1.second, edge2.second};
+            T.insert({next, T.size()});
+            
+            trsdComp.addEdge(i, edge2.first, T.at(state), T.at(next));
+              
+            if(visited.find(next) == visited.end()){
+              visited.insert(next);
+              q.push(next);
             }
           }
-
-          // iterate over the states of transducer 2
-          for (int C = 0; C < Y; C++) {
-            for (auto edge2 : T1.table[C][c2]) {
-
-              int c3 = edge2.first;
-              int D = edge2.second;
-
-              //                            cout << "Add Edge:" << "("<< c1 <<
-              //                            c3 << C*X + A << D*X + B << ")" <<
-              //                            endl;
-
-              trsdComp.addEdge(c1, c3, C * X + A, D * X + B);
+          
+          if(edge1.first == 0){
+            pair<int, int> next = {edge1.second, state.second};
+            T.insert({next, T.size()});
+            
+            trsdComp.addEdge(i, 0, T.at(state), T.at(next));
+              
+            if(visited.find(next) == visited.end()){
+              visited.insert(next);
+              q.push(next);
             }
           }
+          
         }
       }
-    }
-
-    for (int C = 0; C < Y; C++) {
-      for (auto e : T1.table[C][0]) {
-        int outChar = e.first;
-        int D = e.second;
-        for (int A = 0; A < X; A++) {
-          //                    cout << "Add Case 2 Epsilon Edge:" << "("<< 0 <<
-          //                    outChar << C*X + A << D*X + A << ")" << endl;
-          trsdComp.addEdge(0, outChar, C * X + A, D * X + A);
+      
+      for(auto edge1: T1.table[state.second][0]){
+        
+        pair<int, int> next = {state.first, edge1.second};
+        T.insert({next, T.size()});
+        
+        trsdComp.addEdge(0, edge1.first, T.at(state), T.at(next));
+          
+        if(visited.find(next) == visited.end()){
+          visited.insert(next);
+          q.push(next);
         }
       }
+    
     }
+    
+    for(std::map<pair<int, int>, int>::iterator i = T.begin(); i != T.end(); ++i)
+    {
+      pair<int, int> state =  i->first;
 
-    for (int i = 0; i < X; i++) {
-      for (int j = 0; j < Y; j++) {
-
-        // the trsdComp.table[j * X + i] entry is not necessarily defined;
-
-        if (count((this->finalNodes).begin(), (this->finalNodes).end(), i) &&
-            count(T1.finalNodes.begin(), T1.finalNodes.end(), j) &&
-            trsdComp.table[j * X + i].size() != 0) {
-          trsdComp.finalNodes.push_back(j * X + i);
-        }
+      // initial nodes
+      if (count((this->startNodes).begin(), (this->startNodes).end(), state.first) &&
+          count(T1.startNodes.begin(), T1.startNodes.end(), state.second)) {
+        trsdComp.startNodes.push_back(i -> second);
+      }
+      // final nodes
+      if (count((this->finalNodes).begin(), (this->finalNodes).end(), state.first) &&
+          count(T1.finalNodes.begin(), T1.finalNodes.end(), state.second)) {
+        trsdComp.finalNodes.push_back(i -> second);
       }
     }
-
+    
     return trsdComp;
   }
 
@@ -598,6 +603,11 @@ struct Transducer {
     }
     return true;
   }
+    
+  bool cycleCheck(){
+    // Check whether the language is finite.
+    return true;
+  }
 };
 
 // Implementation of the transducers used in the proof.
@@ -710,7 +720,7 @@ Transducer splitRec() {
     split = aat.compose(split).minimize();
   }
 
-  return split;
+  return split.minimize();
 }
 
 Transducer irredFactorRec() {
@@ -757,7 +767,7 @@ Transducer Theorem2() {
         vector<int> inverse1((split.table.size()), -1);
         vector<int> inverse2((split.table.size()), -1);
         if(split.languageEquality(0, 0, inverse1, inverse2, splitPrev)){
-            return split;
+            return split.minimize();
         }
     }
     splitPrev = split;
@@ -824,6 +834,35 @@ set<string> CosmologicalTheorem() {
   return words;
 }
 
+void getTable(){
+    
+    auto sr = splitRec();
+    
+    cout << sr.table.size() << endl;
+    
+    auto res = sr.traverse("2532");
+    
+    if(res.size() == 0){
+        cout << "Invalid" << endl;
+    }else{
+        cout << "Valid" << endl;
+    }
+
+    for(int a = 1; a <= sr.inputLetters; a++){
+        for(int i = 11; i < sr.table.size(); i++){
+
+            if(sr.table[i][a].size() == 0){
+                cout << "$\\varnothing$ &";
+            }else{
+                auto node = sr.table[i][a][0].second;
+                cout << node << " & ";
+            }
+        }
+        cout << "\\\\" << endl;
+    }
+    
+}
+
 void derive(string &word, int iter){
     
     Transducer at = audioactiveT();
@@ -844,8 +883,8 @@ int main(int argc, const char *argv[]) {
 
   auto start = chrono::steady_clock::now();
 
-  Theorem2();
   CosmologicalTheorem();
+  // There's still a problem with the composition - but where's it coming from
     
   auto end = chrono::steady_clock::now();
 
