@@ -820,6 +820,7 @@ set<string> CosmologicalTheorem() {
             vector<int> inverse1((Tn.table.size()), -1);
             vector<int> inverse2((Tn.table.size()), -1);
             if(Tn.languageEquality(0, 0, inverse1, inverse2, Tn_prev)){
+                cout << "Verified Isomorphism" << endl;
                 break;
             }
         }
@@ -909,4 +910,3 @@ int main(int argc, const char *argv[]) {
 
   cout << chrono::duration<double, milli>(diff).count() << " ms" << endl;
 }
-
