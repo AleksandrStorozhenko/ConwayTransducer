@@ -1,64 +1,42 @@
+#include <algorithm>
 #include <assert.h>
 #include <chrono>
 #include <iostream>
 #include <map>
+#include <queue>
 #include <set>
 #include <stack>
-#include <queue>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 using namespace std;
-
-#define endl "\n";
 
 struct Transducer {
 
   int inputLetters, outputLetters;
 
-  vector<int> startNodes, finalNodes;
+  set<int> startNodes, finalNodes;
 
   vector<vector<vector<pair<int, int>>>> table;
 
   Transducer(int inputLetters, int outputLetters)
-      : inputLetters(inputLetters),
-        outputLetters(outputLetters){
-            // 0 -> e; 1 - 1; 2 - 2; 3 - 3; 4 - n; 5 - .;
+      : inputLetters(inputLetters), outputLetters(outputLetters){
 
-        };
+                                    };
 
   Transducer(int stateCount, int inputLetters, int outputLetters,
-             vector<int> &startNodes)
-      : inputLetters(inputLetters), outputLetters(outputLetters) {
-    (this->table).resize(stateCount);
-
+             set<int> &startNodes)
+      : inputLetters(inputLetters), outputLetters(outputLetters),
+        startNodes(startNodes) {
+    table.resize(stateCount);
     for (int i = 0; i < stateCount; ++i) {
-      (this->table)[i].resize((this->inputLetters) + 1);
+      table[i].resize(inputLetters + 1);
     }
-
-    this->startNodes = startNodes;
-
-    vector<int> finalNodes;
-
-    this->finalNodes = finalNodes;
   };
 
   Transducer(int stateCount, int inputLetters, int outputLetters,
-             vector<int> &startNodes, vector<int> &finalNodes)
-      : inputLetters(inputLetters), outputLetters(outputLetters) {
-
-    // 0 -> e; 1 - 1; 2 - 2; 3 - 3; 4 - n; 5 - .;
-
-    (this->table).resize(stateCount);
-
-    for (int i = 0; i < stateCount; ++i) {
-
-      (this->table)[i].resize((this->inputLetters) + 1);
-    }
-
-    this->startNodes = startNodes;
-
+             set<int> &startNodes, set<int> &finalNodes)
+      : Transducer(stateCount, inputLetters, outputLetters, startNodes) {
     this->finalNodes = finalNodes;
   };
 
@@ -71,98 +49,60 @@ struct Transducer {
     }
 
     // basically if it's the first one then
-    // (this->table)[A].resize(inputLetters+1);
-    (this->table)[A][inpchar].push_back({outchar, B});
+    // table[A].resize(inputLetters+1);
+    table[A][inpchar].push_back({outchar, B});
   }
 
-  Transducer compose(Transducer T1){
-    
+  Transducer compose(Transducer &T1) {
+
     map<pair<int, int>, int> T;
-    
+
     Transducer trsdComp = Transducer(this->inputLetters, T1.outputLetters);
-    
-    queue<pair<int, int>> q;
+
+    vector<pair<int, int>> q;
     set<pair<int, int>> visited;
-    
-    for(auto i: this->startNodes){
-      for(auto j: T1.startNodes){
-        
-        pair<int, int> state = {i , j};
-        
-        visited.insert(state);
-        T.insert({state, T.size()});
-        q.push(state);
-      }
-    }
-    
-    while(!q.empty()){
-      
-      auto &state = q.front();
-      q.pop();
-      
-      for(int i = 0; i <= this -> inputLetters; i++){
 
-        for (auto edge1 : (this->table)[state.first][i]) {
-          
-          for(auto edge2: T1.table[state.second][edge1.first]){
-            
+    auto index = [&](pair<int, int> state) {
+      auto [it, insertion_did_happen] = T.try_emplace(state, T.size());
+      auto idx = it->second;
+      if (insertion_did_happen) {
+        q.push_back(state);
+        if (this->finalNodes.find(state.first) != this->finalNodes.end() &&
+            T1.finalNodes.find(state.second) != T1.finalNodes.end())
+          trsdComp.finalNodes.insert(idx);
+      }
+      return idx;
+    };
+
+    for (auto i : this->startNodes)
+      for (auto j : T1.startNodes)
+        trsdComp.startNodes.insert(index(pair(i, j)));
+
+    while (!q.empty()) {
+      auto state = q.back();
+      q.pop_back();
+
+      for (int i = 0; i <= this->inputLetters; i++) {
+        for (auto edge1 : table[state.first][i]) {
+          for (auto edge2 : T1.table[state.second][edge1.first]) {
             pair<int, int> next = {edge1.second, edge2.second};
-            T.insert({next, T.size()});
-            
-            trsdComp.addEdge(i, edge2.first, T.at(state), T.at(next));
-              
-            if(visited.find(next) == visited.end()){
-              visited.insert(next);
-              q.push(next);
-            }
-          }
-          
-          if(edge1.first == 0){
-            pair<int, int> next = {edge1.second, state.second};
-            T.insert({next, T.size()});
-            
-            trsdComp.addEdge(i, 0, T.at(state), T.at(next));
-              
-            if(visited.find(next) == visited.end()){
-              visited.insert(next);
-              q.push(next);
-            }
-          }
-          
-        }
-      }
-      
-      for(auto edge1: T1.table[state.second][0]){
-        
-        pair<int, int> next = {state.first, edge1.second};
-        T.insert({next, T.size()});
-        
-        trsdComp.addEdge(0, edge1.first, T.at(state), T.at(next));
-          
-        if(visited.find(next) == visited.end()){
-          visited.insert(next);
-          q.push(next);
-        }
-      }
-    
-    }
-    
-    for(std::map<pair<int, int>, int>::iterator i = T.begin(); i != T.end(); ++i)
-    {
-      pair<int, int> state =  i->first;
 
-      // initial nodes
-      if (count((this->startNodes).begin(), (this->startNodes).end(), state.first) &&
-          count(T1.startNodes.begin(), T1.startNodes.end(), state.second)) {
-        trsdComp.startNodes.push_back(i -> second);
+            trsdComp.addEdge(i, edge2.first, T.at(state), index(next));
+          }
+
+          if (edge1.first == 0) {
+            pair<int, int> next = {edge1.second, state.second};
+            trsdComp.addEdge(i, 0, T.at(state), index(next));
+          }
+        }
       }
-      // final nodes
-      if (count((this->finalNodes).begin(), (this->finalNodes).end(), state.first) &&
-          count(T1.finalNodes.begin(), T1.finalNodes.end(), state.second)) {
-        trsdComp.finalNodes.push_back(i -> second);
+
+      for (auto edge1 : T1.table[state.second][0]) {
+        pair<int, int> next = {state.first, edge1.second};
+        trsdComp.addEdge(0, edge1.first, T.at(state), index(next));
       }
     }
-    
+
     return trsdComp;
   }
 
@@ -170,13 +110,13 @@ struct Transducer {
 
     // the number of states remains
     Transducer transpose =
-        Transducer((this->table).size(), this->inputLetters,
-                   this->outputLetters, this->finalNodes, this->startNodes);
+        Transducer(table.size(), this->inputLetters, this->outputLetters,
+                   this->finalNodes, this->startNodes);
 
     // iterate over the nodes
-    for (int i = 0; i < (int)(this->table).size(); i++) {
+    for (int i = 0; i < (int)table.size(); i++) {
       for (int c = 0; c <= this->inputLetters; c++) {
-        for (auto edge : (this->table)[i][c]) {
+        for (auto edge : table[i][c]) {
           transpose.addEdge(c, edge.first, edge.second, i);
         }
       }
@@ -184,7 +124,7 @@ struct Transducer {
 
     return transpose;
   }
-  
+
   void backtrack(string word, int node, string &out, set<string> &res) {
 
     if (word.size() == 0) {
@@ -194,7 +134,7 @@ struct Transducer {
       return;
     }
 
-    for (auto edge : (this->table)[node][(int)(word[0] - 48)]) {
+    for (auto edge : table[node][(int)(word[0] - 48)]) {
 
       if (((int)(word[0]) - 48 == edge.first) and (edge.first == 0) &&
           node == edge.second) {
@@ -240,8 +180,8 @@ struct Transducer {
 
       int total_edges = 0;
 
-      for (int i = 0; i < (this->table).size(); i++) {
-        total_edges += (this->table)[i].size();
+      for (int i = 0; i < table.size(); i++) {
+        total_edges += table[i].size();
         if (total_edges)
           break;
       }
@@ -251,7 +191,7 @@ struct Transducer {
     }
 
     for (int i = 0; i <= this->inputLetters; i++) {
-      for (auto edge : (this->table)[node][i]) {
+      for (auto edge : table[node][i]) {
 
         if (visited.find(edge.second) != visited.end())
           continue;
@@ -288,18 +228,18 @@ struct Transducer {
     return res_word;
   }
 
-  void next(int node, int letter, vector<int> &nextStates) {
+  void next(int node, int letter, set<int> &nextStates) {
 
-    for (auto el : (this->table)[node][letter]) {
-      nextStates.push_back(el.second);
+    for (auto el : table[node][letter]) {
+      nextStates.insert(el.second);
     }
   }
 
-  vector<int> nextSet(vector<int> &S, int letter) {
+  set<int> nextSet(set<int> &S, int letter) {
 
     // S - set of states; T - set of next states;
 
-    vector<int> T;
+    set<int> T;
 
     for (auto q : S) {
       this->next(q, letter, T);
@@ -308,7 +248,7 @@ struct Transducer {
     return this->closure(T);
   }
 
-  vector<int> closure(vector<int> closure) {
+  set<int> closure(set<int> closure) {
 
     if (closure.size() != 0) {
       stack<int> S;
@@ -324,12 +264,12 @@ struct Transducer {
         S.pop();
         visited.insert(node);
 
-        for (auto e : (this->table)[node][0]) {
+        for (auto e : table[node][0]) {
 
           int out_node = e.second;
 
           if (visited.find(out_node) == visited.end()) {
-            closure.push_back(out_node);
+            closure.insert(out_node);
             S.push(out_node);
           }
         }
@@ -339,19 +279,11 @@ struct Transducer {
     return closure;
   }
 
-  void explore(map<vector<int>, int> &T, vector<int> &S, Transducer &B) {
+  void explore(map<set<int>, int> &T, set<int> &S, Transducer &B) {
 
     for (int c = 1; c <= B.inputLetters; c++) {
 
-      vector<int> U = this->nextSet(S, c);
-
-      // check if all the elements of U are unique.
-      set<int> USet(U.begin(), U.end());
-      U.assign(USet.begin(), USet.end());
-
-      assert(USet.size() == U.size());
-
-      sort(U.begin(), U.end());
+      set<int> U = this->nextSet(S, c);
 
       if (T.find(U) != T.end()) {
 
@@ -394,11 +326,9 @@ struct Transducer {
 
     Transducer B = Transducer(this->inputLetters, this->outputLetters);
 
-    vector<int> I = this->closure(this->startNodes);
+    set<int> I = this->closure(this->startNodes);
 
-    sort(I.begin(), I.end());
-
-    map<vector<int>, int> T;
+    map<set<int>, int> T;
     T.insert({I, T.size()});
 
     this->explore(T, I, B);
@@ -407,13 +337,13 @@ struct Transducer {
 
     if (B.table.size()) {
 
-      B.startNodes.push_back(T.at(I));
+      B.startNodes.insert(T.at(I));
 
       for (const auto &el : T) {
         for (int i = 0; i < (this->finalNodes).size(); i++) {
           if (count(el.first.begin(), el.first.end(), i) &&
               count((this->finalNodes).begin(), (this->finalNodes).end(), i)) {
-            B.finalNodes.push_back(el.second);
+            B.finalNodes.insert(el.second);
           }
         }
       }
@@ -428,12 +358,12 @@ struct Transducer {
 
     int newAlph = ((this->inputLetters) + 1) * ((this->outputLetters) + 1) - 1;
 
-    auto rec = Transducer((this->table).size(), newAlph, 0, this->startNodes,
+    auto rec = Transducer(table.size(), newAlph, 0, this->startNodes,
                           this->finalNodes);
 
-    for (int i = 0; i < (this->table).size(); i++) {
+    for (int i = 0; i < table.size(); i++) {
       for (int j = 0; j <= this->inputLetters; j++) {
-        for (auto e : (this->table)[i][j]) {
+        for (auto e : table[i][j]) {
           rec.table[i][(e.first * (this->inputLetters + 1) + j)].push_back(
               {0, e.second});
         }
@@ -445,12 +375,12 @@ struct Transducer {
 
   Transducer splitAlph(int inputLetters, int outputLetters) {
 
-    auto split = Transducer((this->table).size(), inputLetters, outputLetters,
+    auto split = Transducer(table.size(), inputLetters, outputLetters,
                             this->startNodes, this->finalNodes);
 
-    for (int i = 0; i < (this->table).size(); i++) {
+    for (int i = 0; i < table.size(); i++) {
       for (int j = 0; j <= this->inputLetters; j++) {
-        for (auto e : (this->table)[i][j]) {
+        for (auto e : table[i][j]) {
 
           int inpLetter = j % (inputLetters + 1);
 
@@ -495,13 +425,11 @@ struct Transducer {
 
     // Flip the final nodes vector;
 
-    vector<int> invertFinal;
+    set<int> invertFinal;
 
     for (int i = 0; i < (complement.table).size(); i++) {
-      if (count((complement.finalNodes).begin(), (complement.finalNodes).end(),
-                i) == 0) {
-        invertFinal.push_back(i);
-      }
+      if (complement.finalNodes.find(i) == complement.finalNodes.end())
+        invertFinal.insert(i);
     }
 
     complement.finalNodes = invertFinal;
@@ -513,12 +441,12 @@ struct Transducer {
   Transducer RtF() {
 
     Transducer convert =
-        Transducer((this->table).size(), this->inputLetters, this->inputLetters,
+        Transducer(table.size(), this->inputLetters, this->inputLetters,
                    this->startNodes, this->finalNodes);
 
-    for (int i = 0; i < (this->table).size(); i++) {
+    for (int i = 0; i < table.size(); i++) {
       for (int j = 0; j <= convert.inputLetters; j++) {
-        for (auto edge : (this->table)[i][j]) {
+        for (auto edge : table[i][j]) {
           convert.addEdge(j, j, i, edge.second);
         }
       }
@@ -529,12 +457,12 @@ struct Transducer {
 
   Transducer FtR() {
 
-    Transducer convert = Transducer((this->table).size(), this->inputLetters, 0,
+    Transducer convert = Transducer(table.size(), this->inputLetters, 0,
                                     this->startNodes, this->finalNodes);
 
-    for (int i = 0; i < (this->table).size(); i++) {
+    for (int i = 0; i < table.size(); i++) {
       for (int j = 0; j <= convert.inputLetters; j++) {
-        for (auto edge : (this->table)[i][j]) {
+        for (auto edge : table[i][j]) {
           convert.addEdge(j, 0, i, edge.second);
         }
       }
@@ -546,12 +474,12 @@ struct Transducer {
   Transducer invert() {
 
     Transducer invert =
-        Transducer((this->table).size(), this->outputLetters,
-                   this->inputLetters, this->startNodes, this->finalNodes);
+        Transducer(table.size(), this->outputLetters, this->inputLetters,
+                   this->startNodes, this->finalNodes);
 
-    for (int i = 0; i < (this->table).size(); i++) {
+    for (int i = 0; i < table.size(); i++) {
       for (int j = 0; j <= this->inputLetters; j++) {
-        for (auto edge : (this->table)[i][j]) {
+        for (auto edge : table[i][j]) {
           invert.addEdge(edge.first, j, i, edge.second);
         }
       }
@@ -560,49 +488,49 @@ struct Transducer {
     return invert;
   }
 
-  bool languageEquality(int u, int v, vector<int> &inverse1, vector<int> &inverse2, Transducer &T1) {
+  bool languageEquality(int u, int v, vector<int> &inverse1,
+                        vector<int> &inverse2, Transducer &T1) {
 
     // u - node of the first graph;
     // v - node of the second graph;
-      
+
     inverse1[u] = v;
     inverse2[v] = u;
 
-    for(int i = 1; i <= this->inputLetters; i++){
-        
-        int n1, n2;
-        
-        if(((this->table)[u][i].size() == (T1.table)[u][i].size())){
-            if((this->table)[u][i].size()){
-                n1 = (this->table)[u][i][0].second;
-                n2 = T1.table[v][i][0].second;
-            }else{
-                continue;
-            }
+    for (int i = 1; i <= this->inputLetters; i++) {
+
+      int n1, n2;
+
+      if ((table[u][i].size() == (T1.table)[u][i].size())) {
+        if (table[u][i].size()) {
+          n1 = table[u][i][0].second;
+          n2 = T1.table[v][i][0].second;
+        } else {
+          continue;
         }
-        else{
-            return false;
-        }
-        
-        if(inverse1[n1] == -1 && inverse2[n2] == -1){
-            // if we simply return the language inequality directly then just whichever letter is executed first will fully determine
-            if(!languageEquality(n1, n2, inverse1, inverse2, T1)) return false;
-        }else if(inverse1[n1] != n2 || inverse2[n2] != n1){
-            return false;
-        }
-        
+      } else {
+        return false;
+      }
+
+      if (inverse1[n1] == -1 && inverse2[n2] == -1) {
+        // if we simply return the language inequality directly then just
+        // whichever letter is executed first will fully determine
+        if (!languageEquality(n1, n2, inverse1, inverse2, T1))
+          return false;
+      } else if (inverse1[n1] != n2 || inverse2[n2] != n1) {
+        return false;
+      }
     }
     return true;
   }
-
 };
 
 // Implementation of the transducers used in the proof.
 
 Transducer multimark() {
 
-  vector<int> sn{0};
-  vector<int> fn{0};
+  set<int> sn{0};
+  set<int> fn{0};
 
   Transducer multimark = Transducer(1, 5, 5, sn, fn);
 
@@ -617,8 +545,8 @@ Transducer multimark() {
 
 Transducer singlemark() {
 
-  vector<int> sn{0};
-  vector<int> fn{0, 3};
+  set<int> sn{0};
+  set<int> fn{0, 3};
 
   Transducer singlemark = Transducer(4, 4, 5, sn, fn);
 
@@ -636,8 +564,8 @@ Transducer singlemark() {
 
 Transducer scissors() {
 
-  vector<int> sn{0};
-  vector<int> fn{2};
+  set<int> sn{0};
+  set<int> fn{2};
 
   Transducer scissors = Transducer(3, 5, 4, sn, fn);
 
@@ -658,7 +586,7 @@ Transducer scissors() {
 Transducer audioactiveT(bool augmented = false) {
 
   // it makes sense to place them first i.e
-  vector<int> sn{0, 1, 2, 3};
+  set<int> sn{0, 1, 2, 3};
 
   Transducer audioactiveT =
       Transducer(24, 4 + augmented, 4 + augmented, sn, sn);
@@ -734,58 +662,58 @@ Transducer irredFactorDer() {
 // Theorem Proofs
 
 Transducer Theorem2() {
-  
+
   cout << "Splitting Theorem Proof" << endl;
 
   auto aat = audioactiveT(true);
   auto split = aat.FtR().minimize();
   auto splitPrev = split;
 
-  int count  = 0;
-  while(true){
-    cout << "Composition degree n: " << count << " | Number of States: " << split.table.size() << endl;
+  int count = 0;
+  while (true) {
+    cout << "Composition degree n: " << count
+         << " | Number of States: " << split.table.size() << endl;
 
     count++;
     // check for language equality
     split = aat.compose(split).minimize();
-    
-    if(split.table.size() == splitPrev.table.size()){
-        vector<int> inverse1((split.table.size()), -1);
-        vector<int> inverse2((split.table.size()), -1);
-        if(split.languageEquality(0, 0, inverse1, inverse2, splitPrev)){
-            return split.minimize();
-        }
+
+    if (split.table.size() == splitPrev.table.size()) {
+      vector<int> inverse1((split.table.size()), -1);
+      vector<int> inverse2((split.table.size()), -1);
+      if (split.languageEquality(0, 0, inverse1, inverse2, splitPrev)) {
+        return split.minimize();
+      }
     }
     splitPrev = split;
   }
 }
 
-void hamiltonPath(string element, vector<string> &path, set<string> &visited, set<vector<string>> &paths, map<string, vector<string>> &adj) {
+void hamiltonPath(string element, vector<string> &path, set<string> &visited,
+                  set<vector<string>> &paths,
+                  map<string, vector<string>> &adj) {
 
-   if(path.size() == 92) {
-     paths.insert(path);
-     return;
-   }
-  
-  for(auto el_next: adj[element]){
-    
-    if(visited.find(element) == visited.end()){
+  if (path.size() == 92) {
+    paths.insert(path);
+    return;
+  }
+
+  for (auto el_next : adj[element]) {
+
+    if (visited.find(element) == visited.end()) {
       path.push_back(element);
       visited.insert(element);
       hamiltonPath(el_next, path, visited, paths, adj);
       path.pop_back();
       visited.erase(element);
     }
-    
   }
-  
 }
-
 
 set<string> CosmologicalTheorem() {
 
   cout << "Cosmological Theorem Proof" << endl;
-  
+
   auto at = audioactiveT();
 
   auto factorizer = irredFactorDer();
@@ -796,35 +724,36 @@ set<string> CosmologicalTheorem() {
 
   // This is supposed to be the generator - transposed to a recogniser
   // Instead of directly inverting the T automata it might be easier to do
-    
-    // Test which one is faster
-    auto T_inv = T.invert();
-    
+
+  // Test which one is faster
+  auto T_inv = T.invert();
+
   auto Tn = T_inv.FtR().minimize();
 
   auto Tn_prev = Tn;
 
   int count = 1;
-  while(true){
+  while (true) {
 
-    cout << "Composition degree n: " << count << " | Number of States: " << Tn.table.size() << endl;
+    cout << "Composition degree n: " << count
+         << " | Number of States: " << Tn.table.size() << endl;
     count++;
 
     // Can still make it more efficient by
     Tn = T_inv.compose(Tn).minimize();
 
     if (Tn_prev.table.size() == Tn.table.size()) {
-        
-        cout << "Potential Isomorphism" << endl;
-        
-        if(Tn.table.size() == Tn_prev.table.size()){
-            vector<int> inverse1((Tn.table.size()), -1);
-            vector<int> inverse2((Tn.table.size()), -1);
-            if(Tn.languageEquality(0, 0, inverse1, inverse2, Tn_prev)){
-                cout << "Verified Isomorphism" << endl;
-                break;
-            }
+
+      cout << "Potential Isomorphism" << endl;
+
+      if (Tn.table.size() == Tn_prev.table.size()) {
+        vector<int> inverse1((Tn.table.size()), -1);
+        vector<int> inverse2((Tn.table.size()), -1);
+        if (Tn.languageEquality(0, 0, inverse1, inverse2, Tn_prev)) {
+          cout << "Verified Isomorphism" << endl;
+          break;
         }
+      }
     }
 
     Tn_prev = Tn;
@@ -837,56 +766,64 @@ set<string> CosmologicalTheorem() {
   cout << "Number of Elements: " << words.size() << endl;
 
   map<string, vector<string>> adj;
-  
+
   for (auto word : words) {
-    
+
     auto deriv = factorizer.traverse(*at.traverse(word).begin());
 
-    for(auto el: deriv){
-      if(adj.count(word)){
+    for (auto el : deriv) {
+      if (adj.count(word)) {
         adj[word].push_back(el);
-      }else{
+      } else {
         vector<string> elts;
         elts.push_back(el);
         adj.insert({word, elts});
       }
     }
   }
-  
-  // So now we have the elements and want to construct an adjacency list from them;
-  
+
+  // So now we have the elements and want to construct an adjacency list from
+  // them;
+
   // We also want the mapping between elements and atomic labelings;
-  
+
   string s;
   cout << endl;
   cout << "View Elements (Y/N)" << endl;
   cin >> s;
-  
-  vector<string> per_elt_names {"H","He" , "Li" , "Be" , "B" , "C" , "N" , "O" , "F" , "Ne" , "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga", "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd", "In", "Sn", "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U"};
-  
-  if(s =="Y"){
+
+  vector<string> per_elt_names{
+      "H",  "He", "Li", "Be", "B",  "C",  "N",  "O",  "F",  "Ne", "Na", "Mg",
+      "Al", "Si", "P",  "S",  "Cl", "Ar", "K",  "Ca", "Sc", "Ti", "V",  "Cr",
+      "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga", "Ge", "As", "Se", "Br", "Kr",
+      "Rb", "Sr", "Y",  "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd",
+      "In", "Sn", "Sb", "Te", "I",  "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd",
+      "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu", "Hf",
+      "Ta", "W",  "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po",
+      "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U"};
+
+  if (s == "Y") {
     set<string> visited;
     set<vector<string>> paths;
-    
+
     string start = "3";
     vector<string> path;
     hamiltonPath(start, path, visited, paths, adj);
-    
+
     auto it = paths.begin();
     advance(it, 2);
     path = *it;
     reverse(path.begin(), path.end());
-    
+
     cout << "Common Elements (Conway's ordering)" << endl;
-    for(int i = 0; i < path.size(); i++){
+    for (int i = 0; i < path.size(); i++) {
       cout << endl;
       cout << "Name:" << per_elt_names[i] << endl;
-      cout <<"Derivation: ";
-      for(auto el: adj[path[i]]){
-        
+      cout << "Derivation: ";
+      for (auto el : adj[path[i]]) {
+
         auto itr = find(path.begin(), path.end(), el);
         cout << per_elt_names[distance(path.begin(), itr)] << " ";
-        
       }
       cout << endl;
       cout << "Element: " << path[i] << endl;
@@ -904,11 +841,10 @@ int main(int argc, const char *argv[]) {
   Theorem2();
   cout << endl;
   CosmologicalTheorem();
-  
+
   auto end = chrono::steady_clock::now();
 
   auto diff = end - start;
 
   cout << chrono::duration<double, milli>(diff).count() << " ms" << endl;
 }
-
