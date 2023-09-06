@@ -400,20 +400,14 @@ struct Transducer {
 
     if (this->outputLetters != 0) {
       // merge the alphabets
-      auto merge = this->mergeAlph();
-      auto rev1 = merge.transpose();
-      auto det1 = rev1.determinize();
-      auto rev2 = det1.transpose();
-      auto det2 = rev2.determinize();
+      auto merge = mergeAlph();
+      auto minimized =
+          merge.transpose().determinize().transpose().determinize();
       // split the alphabets
-      auto split = det2.splitAlph(this->inputLetters, this->outputLetters);
+      auto split = minimized.splitAlph(this->inputLetters, this->outputLetters);
       return split;
     } else {
-      auto rev1 = this->transpose();
-      auto det1 = rev1.determinize();
-      auto rev2 = det1.transpose();
-      auto det2 = rev2.determinize();
-      return det2;
+      return transpose().determinize().transpose().determinize();
     }
   }
 
@@ -426,7 +420,6 @@ struct Transducer {
     auto complement = this->minimize();
 
     // Flip the final nodes vector;
-
     set<int> invertFinal;
 
     for (int i = 0; i < (complement.table).size(); i++) {
@@ -615,7 +608,6 @@ Transducer audioactiveT(bool augmented = false) {
   }
 
   if (augmented) {
-
     for (int i = 0; i <= 3; i++) {
       audioactiveT.addEdge(5, 5, i, i);
     }
@@ -789,11 +781,6 @@ set<string> CosmologicalTheorem() {
 
   // We also want the mapping between elements and atomic labelings;
 
-  string s;
-  cout << endl;
-  cout << "View Elements (Y/N)" << endl;
-  cin >> s;
-
   vector<string> per_elt_names{
       "H",  "He", "Li", "Be", "B",  "C",  "N",  "O",  "F",  "Ne", "Na", "Mg",
       "Al", "Si", "P",  "S",  "Cl", "Ar", "K",  "Ca", "Sc", "Ti", "V",  "Cr",
@@ -804,34 +791,29 @@ set<string> CosmologicalTheorem() {
       "Ta", "W",  "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po",
       "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U"};
 
-  if (s == "Y") {
-    set<string> visited;
-    set<vector<string>> paths;
+  set<string> visited;
+  set<vector<string>> paths;
 
-    string start = "3";
-    vector<string> path;
-    hamiltonPath(start, path, visited, paths, adj);
+  string start = "3";
+  vector<string> path;
+  hamiltonPath(start, path, visited, paths, adj);
 
-    auto it = paths.begin();
-    advance(it, 2);
-    path = *it;
-    reverse(path.begin(), path.end());
+  auto it = paths.begin();
+  advance(it, 2);
+  path = *it;
+  reverse(path.begin(), path.end());
 
-    cout << "Common Elements (Conway's ordering)" << endl;
-    for (int i = 0; i < path.size(); i++) {
-      cout << endl;
-      cout << "Name:" << per_elt_names[i] << endl;
-      cout << "Derivation: ";
-      for (auto el : adj[path[i]]) {
-
-        auto itr = find(path.begin(), path.end(), el);
-        cout << per_elt_names[distance(path.begin(), itr)] << " ";
-      }
-      cout << endl;
-      cout << "Element: " << path[i] << endl;
+  cout << "Common Elements (Conway's ordering)" << endl;
+  for (int i = 0; i < path.size(); i++) {
+    cout << i + 1 << '\t' << per_elt_names[i] << '\t'
+         << path[i] << string(50 - path[i].size(), ' ') << " (→";
+    for (auto el : adj[path[i]]) {
+      auto itr = find(path.begin(), path.end(), el);
+      cout << ' ' << per_elt_names[distance(path.begin(), itr)];
     }
-    cout << endl;
+    cout << ")" << endl;
   }
+  cout << endl;
 
   return words;
 }
