@@ -16,13 +16,10 @@ struct Transducer {
 
   int inputLetters, outputLetters;
 
-  // at this point we might as well just use sets
   vector<int> startNodes, finalNodes;
 
   vector<vector<vector<pair<int, int>>>> table;
 
-  // Use initializer lists for the constructors + Also pass optional parameters
-  // to condense all the constructors into 1.
   Transducer(int inputLetters, int outputLetters)
       : inputLetters(inputLetters),
         outputLetters(outputLetters){
@@ -64,7 +61,6 @@ struct Transducer {
     this->finalNodes = finalNodes;
   };
 
-  // Separate the process of adding a new node from adding an edge
   void addEdge(int inpchar, int outchar, int A, int B) {
 
     // check that both A and B are present in the array;
@@ -187,9 +183,7 @@ struct Transducer {
 
     return transpose;
   }
-
-  // Traversal
-
+  
   void backtrack(string word, int node, string &out, set<string> &res) {
 
     if (word.size() == 0) {
@@ -238,13 +232,11 @@ struct Transducer {
   void dfs(int node, vector<int> path, string &word, set<vector<int>> &res_path,
            set<string> &res_word, set<int> &visited) {
 
-    // This is a particular case, in general we need to be able to continue
     if (count((this->finalNodes).begin(), (this->finalNodes).end(), node)) {
 
       res_path.insert(path);
       res_word.insert(word);
 
-      // Keep exploring until you exhaust all the possible paths
       int total_edges = 0;
 
       for (int i = 0; i < (this->table).size(); i++) {
@@ -295,8 +287,6 @@ struct Transducer {
     return res_word;
   }
 
-  // Determinization of Recognisers
-
   void next(int node, int letter, vector<int> &nextStates) {
 
     for (auto el : (this->table)[node][letter]) {
@@ -337,7 +327,6 @@ struct Transducer {
 
           int out_node = e.second;
 
-          // if the element is not in visited
           if (visited.find(out_node) == visited.end()) {
             closure.push_back(out_node);
             S.push(out_node);
