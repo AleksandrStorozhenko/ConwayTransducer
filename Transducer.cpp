@@ -604,18 +604,13 @@ struct Transducer {
     }
     return true;
   }
-    
-  bool cycleCheck(){
-    // Check whether the language is finite.
-    return true;
-  }
+
 };
 
 // Implementation of the transducers used in the proof.
 
 Transducer multimark() {
 
-  // intialize a vector of bool instead ...
   vector<int> sn{0};
   vector<int> fn{0};
 
@@ -669,9 +664,6 @@ Transducer scissors() {
 
   return scissors;
 }
-
-// Use the traversal algorithm to check if the automata is doing what it is
-// supposed to .;..
 
 Transducer audioactiveT(bool augmented = false) {
 
@@ -752,6 +744,8 @@ Transducer irredFactorDer() {
 // Theorem Proofs
 
 Transducer Theorem2() {
+  
+  cout << "Splitting Theorem Proof" << endl;
 
   auto aat = audioactiveT(true);
   auto split = aat.FtR().minimize();
@@ -759,7 +753,8 @@ Transducer Theorem2() {
 
   int count  = 0;
   while(true){
-    cout << "Automata Iteration: " << count << " size " << split.table.size() << endl;
+    cout << "Composition degree n: " << count << " | Number of States: " << split.table.size() << endl;
+
     count++;
     // check for language equality
     split = aat.compose(split).minimize();
@@ -799,6 +794,8 @@ void hamiltonPath(string element, vector<string> &path, set<string> &visited, se
 
 set<string> CosmologicalTheorem() {
 
+  cout << "Cosmological Theorem Proof" << endl;
+  
   auto at = audioactiveT();
 
   auto factorizer = irredFactorDer();
@@ -820,10 +817,8 @@ set<string> CosmologicalTheorem() {
   int count = 1;
   while(true){
 
-    cout << "Iteration: " << count << endl;
+    cout << "Composition degree n: " << count << " | Number of States: " << Tn.table.size() << endl;
     count++;
-
-    cout << "Size: " << Tn.table.size() << endl;
 
     // Can still make it more efficient by
     Tn = T_inv.compose(Tn).minimize();
@@ -871,72 +866,37 @@ set<string> CosmologicalTheorem() {
   
   // We also want the mapping between elements and atomic labelings;
   
-  set<string> visited;
-  set<vector<string>> paths;
+  string s;
+  cout << endl;
+  cout << "View Elements (Y/N)" << endl;
+  cin >> s;
   
-  string start = "3";
-  vector<string> path;
-  hamiltonPath(start, path, visited, paths, adj);
-  
-  path = *paths.begin();
-  reverse(path.begin(), path.end());
-  
-  for(auto elt: path){
-    cout << elt << endl;
+  if(s == "Y"){
+    set<string> visited;
+    set<vector<string>> paths;
+    
+    string start = "3";
+    vector<string> path;
+    hamiltonPath(start, path, visited, paths, adj);
+    
+    path = *paths.begin();
+    reverse(path.begin(), path.end());
+    
+    cout << "Common Elements (Conway's ordering)" << endl;
+    for(auto elt: path){
+      cout << elt << endl;
+    }
   }
 
   return words;
-}
-
-void getTable(){
-    
-    auto sr = splitRec();
-    
-    cout << sr.table.size() << endl;
-    
-    auto res = sr.traverse("2532");
-    
-    if(res.size() == 0){
-        cout << "Invalid" << endl;
-    }else{
-        cout << "Valid" << endl;
-    }
-
-    for(int a = 1; a <= sr.inputLetters; a++){
-        for(int i = 11; i < sr.table.size(); i++){
-
-            if(sr.table[i][a].size() == 0){
-                cout << "$\\varnothing$ &";
-            }else{
-                auto node = sr.table[i][a][0].second;
-                cout << node << " & ";
-            }
-        }
-        cout << "\\\\" << endl;
-    }
-    
-}
-
-void derive(string &word, int iter){
-    
-    Transducer at = audioactiveT();
-    Transducer at_iter = audioactiveT();
-    
-    for(int i = 1; i < iter; i++){
-        at = at.compose(at_iter);
-    }
-    
-    auto res = at.traverse(word);
-    
-    for(auto el: res){
-        cout << el << endl;
-    }
 }
 
 int main(int argc, const char *argv[]) {
 
   auto start = chrono::steady_clock::now();
 
+  Theorem2();
+  cout << endl;
   CosmologicalTheorem();
   
   auto end = chrono::steady_clock::now();
