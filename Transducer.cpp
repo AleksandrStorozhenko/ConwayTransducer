@@ -264,7 +264,8 @@ struct Transducer {
           continue;
 
         path.push_back(edge.second);
-        word += edge.first;
+        string s = to_string(edge.first);
+        word += s;
         visited.insert(edge.second);
 
         dfs(edge.second, path, word, res_path, res_word, visited);
@@ -774,6 +775,28 @@ Transducer Theorem2() {
   }
 }
 
+void hamiltonPath(string element, vector<string> &path, set<string> &visited, set<vector<string>> &paths, map<string, vector<string>> &adj) {
+
+   if(path.size() == 92) {
+     paths.insert(path);
+     return;
+   }
+  
+  for(auto el_next: adj[element]){
+    
+    if(visited.find(element) == visited.end()){
+      path.push_back(element);
+      visited.insert(element);
+      hamiltonPath(el_next, path, visited, paths, adj);
+      path.pop_back();
+      visited.erase(element);
+    }
+    
+  }
+  
+}
+
+
 set<string> CosmologicalTheorem() {
 
   auto at = audioactiveT();
@@ -827,8 +850,39 @@ set<string> CosmologicalTheorem() {
 
   cout << "Number of Elements: " << words.size() << endl;
 
+  map<string, vector<string>> adj;
+  
   for (auto word : words) {
-    cout << word << endl;
+    
+    auto deriv = factorizer.traverse(*at.traverse(word).begin());
+
+    for(auto el: deriv){
+      if(adj.count(word)){
+        adj[word].push_back(el);
+      }else{
+        vector<string> elts;
+        elts.push_back(el);
+        adj.insert({word, elts});
+      }
+    }
+  }
+  
+  // So now we have the elements and want to construct an adjacency list from them;
+  
+  // We also want the mapping between elements and atomic labelings;
+  
+  set<string> visited;
+  set<vector<string>> paths;
+  
+  string start = "3";
+  vector<string> path;
+  hamiltonPath(start, path, visited, paths, adj);
+  
+  path = *paths.begin();
+  reverse(path.begin(), path.end());
+  
+  for(auto elt: path){
+    cout << elt << endl;
   }
 
   return words;
@@ -884,7 +938,7 @@ int main(int argc, const char *argv[]) {
   auto start = chrono::steady_clock::now();
 
   CosmologicalTheorem();
-    
+  
   auto end = chrono::steady_clock::now();
 
   auto diff = end - start;
