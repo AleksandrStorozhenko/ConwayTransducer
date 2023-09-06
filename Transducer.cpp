@@ -870,7 +870,9 @@ set<string> CosmologicalTheorem() {
     vector<string> path;
     hamiltonPath(start, path, visited, paths, adj);
     
-    path = *paths.begin();
+    auto it = paths.begin();
+    advance(it, 2);
+    path = *it;
     reverse(path.begin(), path.end());
     
     cout << "Common Elements (Conway's ordering)" << endl;
@@ -907,3 +909,4 @@ int main(int argc, const char *argv[]) {
 
   cout << chrono::duration<double, milli>(diff).count() << " ms" << endl;
 }
+
