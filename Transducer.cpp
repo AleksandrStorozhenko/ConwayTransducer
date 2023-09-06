@@ -875,7 +875,7 @@ set<string> CosmologicalTheorem() {
     
     cout << "Common Elements (Conway's ordering)" << endl;
     for(int i = 0; i < path.size(); i++){
-      cout << "***";
+      cout << "***" << endl;
       cout << "Name " << per_elt_names[i] << endl;
       cout << "Derivation ";
       for(auto el: adj[path[i]]){
