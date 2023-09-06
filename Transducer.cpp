@@ -62,6 +62,8 @@ struct Transducer {
     vector<pair<int, int>> q;
     set<pair<int, int>> visited;
 
+    // returns the index of a pair state. If the pair state is met for the first
+    // time, assign a new index and enqueue it for further exploration.
     auto index = [&](pair<int, int> state) {
       auto [it, insertion_did_happen] = T.try_emplace(state, T.size());
       auto idx = it->second;
