@@ -884,11 +884,9 @@ int main(int argc, const char *argv[]) {
   auto start = chrono::steady_clock::now();
 
   CosmologicalTheorem();
-  // There's still a problem with the composition - but where's it coming from
     
   auto end = chrono::steady_clock::now();
 
-  // Store the time difference between start and end time
   auto diff = end - start;
 
   cout << chrono::duration<double, milli>(diff).count() << " ms" << endl;
