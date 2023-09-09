@@ -53,7 +53,7 @@ struct Transducer {
     table[A][inpchar].push_back({outchar, B});
   }
 
-  Transducer compose(const Transducer &T1) {
+  Transducer compose(Transducer &T1) {
 
     map<pair<int, int>, int> T;
 
@@ -317,7 +317,9 @@ struct Transducer {
 
         B.table[T.at(S)][c].push_back({0, T.at(U)});
 
-        this->explore(T, U, B);
+        if (U.size() != 0) {
+          this->explore(T, U, B);
+        }
       }
     }
   }
@@ -340,7 +342,7 @@ struct Transducer {
       B.startNodes.insert(T.at(I));
 
       for (const auto &el : T) {
-        for (int i = 0; i < table.size(); i++) {
+        for (int i = 0; i < (this->finalNodes).size(); i++) {
           if (count(el.first.begin(), el.first.end(), i) &&
               count((this->finalNodes).begin(), (this->finalNodes).end(), i)) {
             B.finalNodes.insert(el.second);
@@ -516,53 +518,6 @@ struct Transducer {
     }
     return true;
   }
-
-  void latex_table(ostream& out) {
-    const string alph = "Sabcdefghijklmnopqrstuvwxyz";
-    assert(table.size() <= alph.size());
-
-    out << "\\begin{tabular}{ll}\\toprule\n";
-
-    out << "states & \\texttt{";
-    for(int s = 0; s < table.size(); s++) {
-      out << alph[s] << "\\,";
-    }
-    out << "}\\\\\n";
-
-    out << "initial & \\texttt{";
-    for(int s = 0; s < table.size(); s++) {
-      out << (startNodes.find(s) != startNodes.end() ? '+' : ' ') << "\\,";
-    }
-    out << "}\\\\\n";
-
-    out << "final & \\texttt{";
-    for(int s = 0; s < table.size(); s++) {
-      out << (finalNodes.find(s) != finalNodes.end() ? '+' : ' ') << "\\,";
-    }
-    out << "}\\\\\n";
-
-    out << "\\midrule \n";
-
-    for(int i = 1; i <= inputLetters; i++) {
-      out << "input $";
-      if (i < 4)
-        out << char('0' + i);
-      else if(i == 4)
-        out << 'd';
-      else if(i == 5)
-        out << "\\splt";
-
-      out << "$ & " << "\\texttt{";
-
-      for(auto t : table) {
-        out << alph[t[i].at(0).second] << "\\,";
-      }
-
-      out << "}\\\\\n";
-    }
-
-    out << "\\bottomrule \\end{tabular}" << endl;
-  }
 };
 
 // Implementation of the transducers used in the proof.
@@ -677,10 +632,8 @@ Transducer irredFactorRec() {
 
   auto sm = singlemark().minimize();
   auto sr = splitRec().minimize();
-  auto iwr = audioactiveT().RtF().compose(sm.compose(sr).complement().minimize()).minimize();
+  auto iwr = sm.compose(sr).complement();
 
-  sr.latex_table(cout);
-  iwr.latex_table(cout);
   return iwr;
 }
 
