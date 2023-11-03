@@ -13,95 +13,98 @@ using namespace std;
 
 struct Transducer {
 
+  using letter = int;
+  using state = int;
+  
   int inputLetters, outputLetters;
 
-  set<int> startNodes, finalNodes;
+  set<state> startNodes, finalNodes;
 
-  vector<vector<vector<pair<int, int>>>> table;
-
+  vector<vector<vector<pair<letter, state>>>> table;
+  
+  // Transducer Struct Constructors
+  
   Transducer(int inputLetters, int outputLetters)
       : inputLetters(inputLetters), outputLetters(outputLetters){
-
-                                    };
+        
+  };
 
   Transducer(int stateCount, int inputLetters, int outputLetters,
-             set<int> &startNodes)
+             set<state> &startNodes)
       : inputLetters(inputLetters), outputLetters(outputLetters),
         startNodes(startNodes) {
     table.resize(stateCount);
-    for (int i = 0; i < stateCount; ++i) {
+    for (state i = 0; i < stateCount; ++i) {
       table[i].resize(inputLetters + 1);
     }
   };
 
   Transducer(int stateCount, int inputLetters, int outputLetters,
-             set<int> &startNodes, set<int> &finalNodes)
+             set<state> &startNodes, set<state> &finalNodes)
       : Transducer(stateCount, inputLetters, outputLetters, startNodes) {
     this->finalNodes = finalNodes;
   };
+  
+  void addEdge(letter inpchar, letter outchar, state A, state B) {
 
-  void addEdge(int inpchar, int outchar, int A, int B) {
-
-    // check that both A and B are present in the array;
-
-    for (int k = table.size(); k <= max(A, B); k++) {
-      table.push_back(vector<vector<pair<int, int>>>(inputLetters + 1));
+    for (state k = table.size(); k <= max(A, B); k++) {
+      table.push_back(vector<vector<pair<letter, state>>>(inputLetters + 1));
     }
-
-    // basically if it's the first one then
-    // table[A].resize(inputLetters+1);
+    
     table[A][inpchar].push_back({outchar, B});
   }
 
   Transducer compose(Transducer &T1) {
 
-    map<pair<int, int>, int> T;
+    // Map T indexes pairs of states as the states of the composed transducer.
+    map<pair<state, state>, state> T;
 
     Transducer trsdComp = Transducer(this->inputLetters, T1.outputLetters);
 
-    vector<pair<int, int>> q;
-    set<pair<int, int>> visited;
+    // Multisource BFS
+    vector<pair<state, state>> q;
+    set<pair<state, state>> visited;
 
-    // returns the index of a pair state. If the pair state is met for the first
-    // time, assign a new index and enqueue it for further exploration.
-    auto index = [&](pair<int, int> state) {
-      auto [it, insertion_did_happen] = T.try_emplace(state, T.size());
+    // Helper function returns the index of a pair state. If the pair state is met for the first
+    // time, assigns a new index and enqueues it for further exploration.
+    auto index = [&](pair<state, state> node) {
+      auto [it, insertion_did_happen] = T.try_emplace(node, T.size());
       auto idx = it->second;
       if (insertion_did_happen) {
-        q.push_back(state);
-        if (this->finalNodes.find(state.first) != this->finalNodes.end() &&
-            T1.finalNodes.find(state.second) != T1.finalNodes.end())
+        q.push_back(node);
+        if (finalNodes.find(node.first) != finalNodes.end() &&
+            T1.finalNodes.find(node.second) != T1.finalNodes.end())
           trsdComp.finalNodes.insert(idx);
       }
       return idx;
     };
 
-    for (auto i : this->startNodes)
+    for (auto i : startNodes)
       for (auto j : T1.startNodes)
         trsdComp.startNodes.insert(index(pair(i, j)));
 
     while (!q.empty()) {
-      auto state = q.back();
+      auto node = q.back();
       q.pop_back();
 
-      for (int i = 0; i <= this->inputLetters; i++) {
-        for (auto edge1 : table[state.first][i]) {
-          for (auto edge2 : T1.table[state.second][edge1.first]) {
-            pair<int, int> next = {edge1.second, edge2.second};
+      for (letter i = 0; i <= inputLetters; i++) {
+        for (auto edge1 : table[node.first][i]) {
+          for (auto edge2 : T1.table[node.second][edge1.first]) {
+            pair<state, state> next = {edge1.second, edge2.second};
 
-            trsdComp.addEdge(i, edge2.first, T.at(state), index(next));
+            trsdComp.addEdge(i, edge2.first, T.at(node), index(next));
           }
 
           if (edge1.first == 0) {
-            pair<int, int> next = {edge1.second, state.second};
-            trsdComp.addEdge(i, 0, T.at(state), index(next));
+            pair<state, state> next = {edge1.second, node.second};
+            trsdComp.addEdge(i, 0, T.at(node), index(next));
           }
         }
       }
 
-      for (auto edge1 : T1.table[state.second][0]) {
-        pair<int, int> next = {state.first, edge1.second};
-        trsdComp.addEdge(0, edge1.first, T.at(state), index(next));
+      for (auto edge1 : T1.table[node.second][0]) {
+        pair<state, state> next = {node.first, edge1.second};
+        trsdComp.addEdge(0, edge1.first, T.at(node), index(next));
       }
     }
 
@@ -110,27 +113,21 @@ struct Transducer {
 
   Transducer transpose() {
 
-    // the number of states remains
     Transducer transpose =
-        Transducer(table.size(), this->inputLetters, this->outputLetters,
-                   this->finalNodes, this->startNodes);
+        Transducer(table.size(), inputLetters, outputLetters, finalNodes, startNodes);
 
-    // iterate over the nodes
-    for (int i = 0; i < (int)table.size(); i++) {
-      for (int c = 0; c <= this->inputLetters; c++) {
-        for (auto edge : table[i][c]) {
+    for (state i = 0; i < table.size(); i++)
+      for (letter c = 0; c <= inputLetters; c++)
+        for (auto edge : table[i][c])
           transpose.addEdge(c, edge.first, edge.second, i);
-        }
-      }
-    }
 
     return transpose;
   }
 
-  void backtrack(string word, int node, string &out, set<string> &res) {
+  void backtrack(string word, state node, string &out, set<string> &res) {
 
     if (word.size() == 0) {
-      if (count((this->finalNodes).begin(), (this->finalNodes).end(), node)) {
+      if (count(finalNodes.begin(), finalNodes.end(), node)) {
         res.insert(out);
       }
       return;
@@ -230,27 +227,28 @@ struct Transducer {
     return res_word;
   }
 
-  void next(int node, int letter, set<int> &nextStates) {
-
-    for (auto el : table[node][letter]) {
+  // Determinization
+  
+  void next(state node, letter l, set<state> &nextStates) {
+    for (auto el : table[node][l]) {
       nextStates.insert(el.second);
     }
   }
 
-  set<int> nextSet(set<int> &S, int letter) {
+  set<state> nextSet(set<state> &S, letter l) {
 
     // S - set of states; T - set of next states;
 
     set<int> T;
 
     for (auto q : S) {
-      this->next(q, letter, T);
+      this->next(q, l, T);
     }
 
     return this->closure(T);
   }
 
-  set<int> closure(set<int> closure) {
+  set<state> closure(set<state> closure) {
 
     if (closure.size() != 0) {
       stack<int> S;
@@ -280,60 +278,53 @@ struct Transducer {
 
     return closure;
   }
+  
+  void explore(map<set<state>, state> &T, set<state> &S, Transducer &B) {
+  
+    int id = T.at(S);
+    
+    // Helper function returns the index of a set of states. If the set of states is met for the first
+    // time, assigns a new index and explores it further.
+    auto index = [&](set<state> U) {
+      
+      auto [it, insertion_did_happen] = T.try_emplace(U, T.size());
+      int idx = it->second;
 
-  void explore(map<set<int>, int> &T, set<int> &S, Transducer &B) {
+      // dynamically adjust the graph size
+      if (T.size() > B.table.size()) {
 
-    for (int c = 1; c <= B.inputLetters; c++) {
+        int temp = B.table.size();
+        B.table.resize(T.size());
 
-      set<int> U = this->nextSet(S, c);
-
-      if (T.find(U) != T.end()) {
-
-        if (T.size() > B.table.size()) {
-
-          int temp = B.table.size();
-
-          B.table.resize(T.size());
-
-          for (int i = temp; i < T.size(); i++) {
-            B.table[i].resize(B.inputLetters + 1);
-          }
-        }
-
-        B.table[T.at(S)][c].push_back({0, T.at(U)});
-      } else {
-
-        T.insert({U, T.size()});
-
-        if (T.size() > B.table.size()) {
-
-          int temp = B.table.size();
-          B.table.resize(T.size());
-
-          for (int i = temp; i < T.size(); i++) {
-            B.table[i].resize(B.inputLetters + 1);
-          }
-        }
-
-        B.table[T.at(S)][c].push_back({0, T.at(U)});
-
-        if (U.size() != 0) {
-          this->explore(T, U, B);
+        for (int i = temp; i < T.size(); i++) {
+          B.table[i].resize(B.inputLetters + 1);
         }
       }
+      
+      if (insertion_did_happen && U.size() != 0) {
+        explore(T, U, B);
+      }
+      
+      return idx;
+    };
+    
+    for (letter c = 1; c <= B.inputLetters; c++){
+      int a = index(nextSet(S, c));
+      B.table[id][c].push_back({0, a});
     }
+
   }
-
+  
   Transducer determinize() {
+    
+    Transducer B = Transducer(inputLetters, outputLetters);
 
-    Transducer B = Transducer(this->inputLetters, this->outputLetters);
+    set<state> I = closure(startNodes);
 
-    set<int> I = this->closure(this->startNodes);
-
-    map<set<int>, int> T;
+    map<set<state>, state> T;
     T.insert({I, T.size()});
-
-    this->explore(T, I, B);
+    
+    explore(T, I, B);
 
     // Start & Final Nodes Specification
 
@@ -341,14 +332,12 @@ struct Transducer {
 
       B.startNodes.insert(T.at(I));
 
-      for (const auto &el : T) {
-        for (int i = 0; i < (this->finalNodes).size(); i++) {
+      for (const auto &el : T)
+        for (int i = 0; i < (this->finalNodes).size(); i++)
           if (count(el.first.begin(), el.first.end(), i) &&
-              count((this->finalNodes).begin(), (this->finalNodes).end(), i)) {
+              count(finalNodes.begin(), finalNodes.end(), i))
             B.finalNodes.insert(el.second);
-          }
-        }
-      }
+
     }
 
     return B;
