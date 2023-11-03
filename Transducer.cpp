@@ -110,7 +110,7 @@ struct Transducer {
 
     return trsdComp;
   }
-
+  
   Transducer transpose() {
 
     Transducer transpose =
@@ -169,8 +169,8 @@ struct Transducer {
 
   // Element Retrieval Backtrack Function
 
-  void dfs(int node, vector<int> path, string &word, set<vector<int>> &res_path,
-           set<string> &res_word, set<int> &visited) {
+  void dfs(state node, vector<state> path, string &word, set<vector<state>> &res_path,
+           set<string> &res_word, set<state> &visited) {
 
     if (count((this->finalNodes).begin(), (this->finalNodes).end(), node)) {
 
@@ -179,7 +179,7 @@ struct Transducer {
 
       int total_edges = 0;
 
-      for (int i = 0; i < table.size(); i++) {
+      for (state i = 0; i < table.size(); i++) {
         total_edges += table[i].size();
         if (total_edges)
           break;
@@ -189,7 +189,7 @@ struct Transducer {
         return;
     }
 
-    for (int i = 0; i <= this->inputLetters; i++) {
+    for (letter i = 0; i <= inputLetters; i++) {
       for (auto edge : table[node][i]) {
 
         if (visited.find(edge.second) != visited.end())
@@ -214,12 +214,12 @@ struct Transducer {
     // Backtrack through the graph to get the elements (There are no cycles), so
     // we just find all the possible paths through the graph
 
-    set<vector<int>> res_path;
+    set<vector<state>> res_path;
     set<string> res_word;
 
-    for (auto s : this->startNodes) {
-      set<int> visited;
-      vector<int> path{s};
+    for (auto s : startNodes) {
+      set<state> visited;
+      vector<state> path{s};
       string w = "";
       dfs(s, path, w, res_path, res_word, visited);
     }
@@ -239,7 +239,7 @@ struct Transducer {
 
     // S - set of states; T - set of next states;
 
-    set<int> T;
+    set<state> T;
 
     for (auto q : S) {
       this->next(q, l, T);
@@ -251,8 +251,8 @@ struct Transducer {
   set<state> closure(set<state> closure) {
 
     if (closure.size() != 0) {
-      stack<int> S;
-      set<int> visited;
+      stack<state> S;
+      set<state> visited;
 
       for (auto el : closure) {
         S.push(el);
@@ -260,13 +260,13 @@ struct Transducer {
 
       while (!S.empty()) {
 
-        int node = S.top();
+        state node = S.top();
         S.pop();
         visited.insert(node);
 
         for (auto e : table[node][0]) {
 
-          int out_node = e.second;
+          state out_node = e.second;
 
           if (visited.find(out_node) == visited.end()) {
             closure.insert(out_node);
@@ -333,7 +333,7 @@ struct Transducer {
       B.startNodes.insert(T.at(I));
 
       for (const auto &el : T)
-        for (int i = 0; i < (this->finalNodes).size(); i++)
+        for (int i = 0; i < finalNodes.size(); i++)
           if (count(el.first.begin(), el.first.end(), i) &&
               count(finalNodes.begin(), finalNodes.end(), i))
             B.finalNodes.insert(el.second);
@@ -347,35 +347,29 @@ struct Transducer {
 
   Transducer mergeAlph() {
 
-    int newAlph = ((this->inputLetters) + 1) * ((this->outputLetters) + 1) - 1;
+    int newAlph = (inputLetters + 1) * (outputLetters + 1) - 1;
 
-    auto rec = Transducer(table.size(), newAlph, 0, this->startNodes,
-                          this->finalNodes);
+    auto rec = Transducer(table.size(), newAlph, 0, startNodes, finalNodes);
 
-    for (int i = 0; i < table.size(); i++) {
-      for (int j = 0; j <= this->inputLetters; j++) {
-        for (auto e : table[i][j]) {
-          rec.table[i][(e.first * (this->inputLetters + 1) + j)].push_back(
-              {0, e.second});
-        }
-      }
-    }
+    for (state i = 0; i < table.size(); i++)
+      for (letter j = 0; j <= this->inputLetters; j++)
+        for (auto e : table[i][j])
+          rec.table[i][(e.first * (inputLetters + 1) + j)].push_back({0, e.second});
 
     return rec;
   }
 
   Transducer splitAlph(int inputLetters, int outputLetters) {
 
-    auto split = Transducer(table.size(), inputLetters, outputLetters,
-                            this->startNodes, this->finalNodes);
+    auto split = Transducer(table.size(), inputLetters, outputLetters, startNodes, finalNodes);
 
-    for (int i = 0; i < table.size(); i++) {
-      for (int j = 0; j <= this->inputLetters; j++) {
+    for (state i = 0; i < table.size(); i++) {
+      for (letter j = 0; j <= this->inputLetters; j++) {
         for (auto e : table[i][j]) {
 
-          int inpLetter = j % (inputLetters + 1);
+          letter inpLetter = j % (inputLetters + 1);
 
-          int outLetter = j / (inputLetters + 1);
+          letter outLetter = j / (inputLetters + 1);
 
           split.table[i][inpLetter].push_back({outLetter, e.second});
         }
@@ -387,7 +381,7 @@ struct Transducer {
 
   Transducer minimize() {
 
-    if (this->outputLetters != 0) {
+    if (outputLetters) {
       // merge the alphabets
       auto merge = mergeAlph();
       auto minimized =
@@ -406,12 +400,12 @@ struct Transducer {
   Transducer complement() {
 
     // The final determinization produces a complete dfa
-    auto complement = this->minimize();
+    auto complement = minimize();
 
     // Flip the final nodes vector;
-    set<int> invertFinal;
+    set<state> invertFinal;
 
-    for (int i = 0; i < (complement.table).size(); i++) {
+    for (state i = 0; i < complement.table.size(); i++) {
       if (complement.finalNodes.find(i) == complement.finalNodes.end())
         invertFinal.insert(i);
     }
@@ -421,15 +415,14 @@ struct Transducer {
     return complement;
   }
 
-  // It is sufficient to implement the conversion to a filter
   Transducer RtF() {
 
     Transducer convert =
         Transducer(table.size(), this->inputLetters, this->inputLetters,
                    this->startNodes, this->finalNodes);
 
-    for (int i = 0; i < table.size(); i++) {
-      for (int j = 0; j <= convert.inputLetters; j++) {
+    for (state i = 0; i < table.size(); i++) {
+      for (letter j = 0; j <= convert.inputLetters; j++) {
         for (auto edge : table[i][j]) {
           convert.addEdge(j, j, i, edge.second);
         }
@@ -444,8 +437,8 @@ struct Transducer {
     Transducer convert = Transducer(table.size(), this->inputLetters, 0,
                                     this->startNodes, this->finalNodes);
 
-    for (int i = 0; i < table.size(); i++) {
-      for (int j = 0; j <= convert.inputLetters; j++) {
+    for (state i = 0; i < table.size(); i++) {
+      for (letter j = 0; j <= convert.inputLetters; j++) {
         for (auto edge : table[i][j]) {
           convert.addEdge(j, 0, i, edge.second);
         }
@@ -457,23 +450,18 @@ struct Transducer {
 
   Transducer invert() {
 
-    Transducer invert =
-        Transducer(table.size(), this->outputLetters, this->inputLetters,
-                   this->startNodes, this->finalNodes);
+    auto invert = Transducer(table.size(), outputLetters, inputLetters, startNodes, finalNodes);
 
-    for (int i = 0; i < table.size(); i++) {
-      for (int j = 0; j <= this->inputLetters; j++) {
-        for (auto edge : table[i][j]) {
+    for (state i = 0; i < table.size(); i++)
+      for (letter j = 0; j <= inputLetters; j++)
+        for (auto edge : table[i][j])
           invert.addEdge(edge.first, j, i, edge.second);
-        }
-      }
-    }
 
     return invert;
   }
 
-  bool languageEquality(int u, int v, vector<int> &inverse1,
-                        vector<int> &inverse2, Transducer &T1) {
+  bool languageEquality(state u, state v, vector<state> &inverse1,
+                        vector<state> &inverse2, Transducer &T1) {
 
     // u - node of the first graph;
     // v - node of the second graph;
@@ -481,9 +469,9 @@ struct Transducer {
     inverse1[u] = v;
     inverse2[v] = u;
 
-    for (int i = 1; i <= this->inputLetters; i++) {
+    for (letter i = 1; i <= inputLetters; i++) {
 
-      int n1, n2;
+      state n1, n2;
 
       if ((table[u][i].size() == (T1.table)[u][i].size())) {
         if (table[u][i].size()) {
@@ -509,7 +497,29 @@ struct Transducer {
   }
 };
 
-// Implementation of the transducers used in the proof.
+void hamiltonianPath(string element, vector<string> &path, set<string> &visited,
+                  set<vector<string>> &paths,
+                  map<string, vector<string>> &adj) {
+
+  if (path.size() == 92) {
+    paths.insert(path);
+    // The 2 unvisited elements correspond to the transuranic elements
+    return;
+  }
+
+  for (auto el_next : adj[element]) {
+
+    if (visited.find(element) == visited.end()) {
+      path.push_back(element);
+      visited.insert(element);
+      hamiltonianPath(el_next, path, visited, paths, adj);
+      path.pop_back();
+      visited.erase(element);
+    }
+  }
+}
+
+// Definition of the fundemental transducers (Transducers that are not derived from the fundemental composition and complementation operations on transducers)
 
 Transducer multimark() {
 
@@ -524,7 +534,7 @@ Transducer multimark() {
 
   multimark.addEdge(0, 5, 0, 0);
 
-  return multimark;
+  return multimark.minimize();
 }
 
 Transducer singlemark() {
@@ -543,7 +553,7 @@ Transducer singlemark() {
 
   singlemark.addEdge(0, 5, 1, 2);
 
-  return singlemark;
+  return singlemark.minimize();
 }
 
 Transducer scissors() {
@@ -564,7 +574,7 @@ Transducer scissors() {
   scissors.addEdge(5, 0, 0, 1);
   scissors.addEdge(5, 0, 1, 2);
 
-  return scissors;
+  return scissors.minimize();
 }
 
 Transducer audioactiveT(bool augmented = false) {
@@ -602,53 +612,27 @@ Transducer audioactiveT(bool augmented = false) {
     }
   }
 
-  return audioactiveT;
+  return audioactiveT.minimize();
 }
 
-Transducer splitRec() {
-
-  auto aat = audioactiveT(true);
-  auto split = aat.FtR().minimize();
-
-  for (int i = 0; i < 9; i++) {
-    split = aat.compose(split).minimize();
-  }
-
-  return split.minimize();
-}
-
-Transducer irredFactorRec() {
-
-  auto sm = singlemark().minimize();
-  auto sr = splitRec().minimize();
-  auto iwr = sm.compose(sr).complement();
-
-  return iwr;
-}
-
-Transducer irredFactorDer() {
-
+int main(int argc, const char *argv[]) {
+  
+  // We begin by defining a series of useful "example" transducers
+  // These transducers will serve as the fundamental building blocks for the more complex automata, i.e all others will derive from these via FST operations.
   auto mmt = multimark();
-  auto sf = splitRec().RtF();
+  auto smt = singlemark();
   auto sc = scissors();
-  auto isf = irredFactorRec().RtF();
-
-  // definition of irredFactorDer - There's still the problem of minimization of
-  // derivators
-
-  auto ifd =
-      mmt.compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
-
-  return ifd;
-}
-
-// Theorem Proofs
-
-Transducer Theorem2() {
-
-  cout << "Splitting Theorem Proof" << endl;
-
+  // Notably, we define we define the audioactive transducer, modelizing the derivation process for day-one sequences.
+  auto at = audioactiveT();
+  // Finally, we define the augmented audioactive transducer, additionally verifying whether there's a . (5, in our internal representation) between 2 equal characters.
   auto aat = audioactiveT(true);
+  
+  // From these 5 relatively simple automata, we will be able to prove the Cosmological Theorem.
+  
+  // We begin by proving the Splitting Theorem.
+  
+  cout << "Splitting Theorem Proof" << endl;
+  
   auto split = aat.FtR().minimize();
   auto splitPrev = split;
 
@@ -658,64 +642,53 @@ Transducer Theorem2() {
          << " | Number of States: " << split.table.size() << endl;
 
     count++;
-    // check for language equality
+    
     split = aat.compose(split).minimize();
 
     if (split.table.size() == splitPrev.table.size()) {
+      
+      // TODO: Compress this so it goes into the languageequality check directly
+      cout << "Potential Isomorphism" << endl;
       vector<int> inverse1((split.table.size()), -1);
       vector<int> inverse2((split.table.size()), -1);
       if (split.languageEquality(0, 0, inverse1, inverse2, splitPrev)) {
-        return split.minimize();
+        cout << "Verified Input Language Equality" << endl;
+        break;
       }
     }
+    
     splitPrev = split;
   }
-}
+  
+  // The resulting splitting recogniser is, thus, given by: split
+  auto &splitRec = split;
+  
+  // From the splitting recognizer, we can construct a recognizer for the set of irreducible words:
+  // As outlined in the paper, we begin by computing the complement for the recogniser of the irreducible words over 𝑊.
+  auto c = smt.compose(splitRec).complement();
+  // And further compose it with a filter for the input language of the audioactive transducer to reject the words not in 𝑊
+  auto iwr = at.RtF().compose(c);
+  
+  // Prior to proving the main result, let us construct the irreducible factor extractor (Constant minimization allows to assure optimal compositional runtime)
+  
+  auto sf = splitRec.RtF();
+  auto isf = iwr.RtF();
+  
+  auto ife = mmt.compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
+  
+  // We can now give the proof of the Cosmological Theorem !
+  
+  cout << "\nCosmological Theorem Proof" << endl;
 
-void hamiltonPath(string element, vector<string> &path, set<string> &visited,
-                  set<vector<string>> &paths,
-                  map<string, vector<string>> &adj) {
+  auto T = at.compose(ife).minimize();
 
-  if (path.size() == 92) {
-    paths.insert(path);
-    return;
-  }
-
-  for (auto el_next : adj[element]) {
-
-    if (visited.find(element) == visited.end()) {
-      path.push_back(element);
-      visited.insert(element);
-      hamiltonPath(el_next, path, visited, paths, adj);
-      path.pop_back();
-      visited.erase(element);
-    }
-  }
-}
-
-set<string> CosmologicalTheorem() {
-
-  cout << "Cosmological Theorem Proof" << endl;
-
-  auto at = audioactiveT();
-
-  auto factorizer = irredFactorDer();
-
-  // Deal with the inverted edges
-
-  auto T = at.compose(factorizer).minimize();
-
-  // This is supposed to be the generator - transposed to a recogniser
-  // Instead of directly inverting the T automata it might be easier to do
-
-  // Test which one is faster
   auto T_inv = T.invert();
 
   auto Tn = T_inv.FtR().minimize();
 
   auto Tn_prev = Tn;
 
-  int count = 1;
+  count = 1;
   while (true) {
 
     cout << "Composition degree n: " << count
@@ -733,7 +706,7 @@ set<string> CosmologicalTheorem() {
         vector<int> inverse1((Tn.table.size()), -1);
         vector<int> inverse2((Tn.table.size()), -1);
         if (Tn.languageEquality(0, 0, inverse1, inverse2, Tn_prev)) {
-          cout << "Verified Isomorphism" << endl;
+          cout << "Verified Output Language Equality" << endl;
           break;
         }
       }
@@ -746,13 +719,13 @@ set<string> CosmologicalTheorem() {
 
   set<string> words = Tn.getElements();
 
-  cout << "Number of Elements: " << words.size() << endl;
+  cout << "\nNumber of Elements: " << words.size() << endl;
 
   map<string, vector<string>> adj;
 
   for (auto word : words) {
 
-    auto deriv = factorizer.traverse(*at.traverse(word).begin());
+    auto deriv = ife.traverse(*at.traverse(word).begin());
 
     for (auto el : deriv) {
       if (adj.count(word)) {
@@ -778,21 +751,21 @@ set<string> CosmologicalTheorem() {
       "In", "Sn", "Sb", "Te", "I",  "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd",
       "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu", "Hf",
       "Ta", "W",  "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po",
-      "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U"};
+      "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U", "Np", "Pu"};
 
   set<string> visited;
   set<vector<string>> paths;
 
   string start = "3";
   vector<string> path;
-  hamiltonPath(start, path, visited, paths, adj);
-
+  hamiltonianPath(start, path, visited, paths, adj);
+  
   auto it = paths.begin();
   advance(it, 2);
   path = *it;
   reverse(path.begin(), path.end());
 
-  cout << "Common Elements (Conway's ordering)" << endl;
+  cout << "\nCommon Elements (Conway's ordering)" << endl;
   for (int i = 0; i < path.size(); i++) {
     cout << i + 1 << '\t' << per_elt_names[i] << '\t'
          << path[i] << string(50 - path[i].size(), ' ') << " (→";
@@ -802,22 +775,19 @@ set<string> CosmologicalTheorem() {
     }
     cout << ")" << endl;
   }
-  cout << endl;
-
-  return words;
-}
-
-int main(int argc, const char *argv[]) {
-
-  auto start = chrono::steady_clock::now();
-
-  Theorem2();
-  cout << endl;
-  CosmologicalTheorem();
-
-  auto end = chrono::steady_clock::now();
-
-  auto diff = end - start;
-
-  cout << chrono::duration<double, milli>(diff).count() << " ms" << endl;
+  cout << "\nTransuranic Elements" << endl;
+  
+  count = 0;
+  for(auto el: words){
+    if(find(path.begin(), path.end(), el) == path.end()){
+        cout << path.size() + count + 1 << '\t' << per_elt_names[path.size() + count] << '\t'
+      << el << string(50 - el.size(), ' ') << " (→";
+      for (auto elt : adj[el]) {
+        auto itr = find(path.begin(), path.end(), elt);
+        cout << ' ' << ((itr != path.end()) ? per_elt_names[distance(path.begin(), itr)]: per_elt_names[path.size() + ((count+1)%2)]);
+      }
+      cout << ")" << endl;
+        count++;
+    }
+  }
 }
