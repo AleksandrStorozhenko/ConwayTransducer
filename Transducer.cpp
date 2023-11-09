@@ -15,47 +15,28 @@ struct Transducer {
 
   using letter = int;
   using state = int;
-  
+
   int inputLetters, outputLetters;
 
   set<state> startNodes, finalNodes;
 
   vector<vector<vector<pair<letter, state>>>> table;
-  
+
   // Transducer Struct Constructors
-  
-  Transducer(int inputLetters, int outputLetters)
-      : inputLetters(inputLetters), outputLetters(outputLetters){
-        
-  };
 
-  Transducer(int stateCount, int inputLetters, int outputLetters,
-             set<state> &startNodes)
-      : inputLetters(inputLetters), outputLetters(outputLetters),
-        startNodes(startNodes) {
-    table.resize(stateCount);
-    for (state i = 0; i < stateCount; ++i) {
-      table[i].resize(inputLetters + 1);
-    }
-  };
+  Transducer(int inputLetters, int outputLetters, int stateCount = 0)
+      : inputLetters(inputLetters), outputLetters(outputLetters) {
+  }
 
-  Transducer(int stateCount, int inputLetters, int outputLetters,
-             set<state> &startNodes, set<state> &finalNodes)
-      : Transducer(stateCount, inputLetters, outputLetters, startNodes) {
-    this->finalNodes = finalNodes;
-  };
-  
   void addEdge(letter inpchar, letter outchar, state A, state B) {
-
     for (state k = table.size(); k <= max(A, B); k++) {
       table.push_back(vector<vector<pair<letter, state>>>(inputLetters + 1));
     }
-    
+
     table[A][inpchar].push_back({outchar, B});
   }
 
   Transducer compose(Transducer &T1) {
-
     // Map T indexes pairs of states as the states of the composed transducer.
     map<pair<state, state>, state> T;
 
@@ -65,8 +46,9 @@ struct Transducer {
     vector<pair<state, state>> q;
     set<pair<state, state>> visited;
 
-    // Helper function returns the index of a pair state. If the pair state is met for the first
-    // time, assigns a new index and enqueues it for further exploration.
+    // Helper function returns the index of a pair state. If the pair state is
+    // met for the first time, assigns a new index and enqueues it for further
+    // exploration.
     auto index = [&](pair<state, state> node) {
       auto [it, insertion_did_happen] = T.try_emplace(node, T.size());
       auto idx = it->second;
@@ -110,11 +92,11 @@ struct Transducer {
 
     return trsdComp;
   }
-  
-  Transducer transpose() {
 
-    Transducer transpose =
-        Transducer(table.size(), inputLetters, outputLetters, finalNodes, startNodes);
+  Transducer transpose() {
+    Transducer transpose = Transducer(inputLetters, outputLetters);
+    transpose.startNodes = finalNodes;
+    transpose.finalNodes = startNodes;
 
     for (state i = 0; i < table.size(); i++)
       for (letter c = 0; c <= inputLetters; c++)
@@ -125,7 +107,6 @@ struct Transducer {
   }
 
   void backtrack(string word, state node, string &out, set<string> &res) {
-
     if (word.size() == 0) {
       if (count(finalNodes.begin(), finalNodes.end(), node)) {
         res.insert(out);
@@ -154,7 +135,6 @@ struct Transducer {
   }
 
   set<string> traverse(string word) {
-
     set<string> res;
     string out = "";
 
@@ -169,8 +149,9 @@ struct Transducer {
 
   // Element Retrieval Backtrack Function
 
-  void dfs(state node, vector<state> path, string &word, set<vector<state>> &res_path,
-           set<string> &res_word, set<state> &visited) {
+  void dfs(state node, vector<state> path, string &word,
+           set<vector<state>> &res_path, set<string> &res_word,
+           set<state> &visited) {
 
     if (count((this->finalNodes).begin(), (this->finalNodes).end(), node)) {
 
@@ -210,7 +191,6 @@ struct Transducer {
   }
 
   set<string> getElements() {
-
     // Backtrack through the graph to get the elements (There are no cycles), so
     // we just find all the possible paths through the graph
 
@@ -228,7 +208,7 @@ struct Transducer {
   }
 
   // Determinization
-  
+
   void next(state node, letter l, set<state> &nextStates) {
     for (auto el : table[node][l]) {
       nextStates.insert(el.second);
@@ -278,52 +258,40 @@ struct Transducer {
 
     return closure;
   }
-  
+
   void explore(map<set<state>, state> &T, set<state> &S, Transducer &B) {
-  
+
     int id = T.at(S);
-    
-    // Helper function returns the index of a set of states. If the set of states is met for the first
-    // time, assigns a new index and explores it further.
+
+    // Helper function returns the index of a set of states. If the set of
+    // states is met for the first time, assigns a new index and explores it
+    // further.
     auto index = [&](set<state> U) {
-      
       auto [it, insertion_did_happen] = T.try_emplace(U, T.size());
       int idx = it->second;
 
-      // dynamically adjust the graph size
-      if (T.size() > B.table.size()) {
-
-        int temp = B.table.size();
-        B.table.resize(T.size());
-
-        for (int i = temp; i < T.size(); i++) {
-          B.table[i].resize(B.inputLetters + 1);
-        }
-      }
-      
       if (insertion_did_happen && U.size() != 0) {
         explore(T, U, B);
       }
-      
+
       return idx;
     };
-    
-    for (letter c = 1; c <= B.inputLetters; c++){
-      int a = index(nextSet(S, c));
-      B.table[id][c].push_back({0, a});
-    }
 
+    for (letter c = 1; c <= B.inputLetters; c++) {
+      int a = index(nextSet(S, c));
+      B.addEdge(c, 0, id, a);
+    }
   }
-  
+
   Transducer determinize() {
-    
+
     Transducer B = Transducer(inputLetters, outputLetters);
 
     set<state> I = closure(startNodes);
 
     map<set<state>, state> T;
     T.insert({I, T.size()});
-    
+
     explore(T, I, B);
 
     // Start & Final Nodes Specification
@@ -337,7 +305,6 @@ struct Transducer {
           if (count(el.first.begin(), el.first.end(), i) &&
               count(finalNodes.begin(), finalNodes.end(), i))
             B.finalNodes.insert(el.second);
-
     }
 
     return B;
@@ -349,19 +316,23 @@ struct Transducer {
 
     int newAlph = (inputLetters + 1) * (outputLetters + 1) - 1;
 
-    auto rec = Transducer(table.size(), newAlph, 0, startNodes, finalNodes);
+    auto rec = Transducer(newAlph, 0);
+    rec.startNodes = startNodes;
+    rec.finalNodes = finalNodes;
 
     for (state i = 0; i < table.size(); i++)
       for (letter j = 0; j <= this->inputLetters; j++)
         for (auto e : table[i][j])
-          rec.table[i][(e.first * (inputLetters + 1) + j)].push_back({0, e.second});
+          rec.addEdge(e.first * (inputLetters + 1) + j, 0, i, e.second);
 
     return rec;
   }
 
   Transducer splitAlph(int inputLetters, int outputLetters) {
 
-    auto split = Transducer(table.size(), inputLetters, outputLetters, startNodes, finalNodes);
+    auto split = Transducer(inputLetters, outputLetters);
+    split.startNodes = startNodes;
+    split.finalNodes = finalNodes;
 
     for (state i = 0; i < table.size(); i++) {
       for (letter j = 0; j <= this->inputLetters; j++) {
@@ -370,8 +341,7 @@ struct Transducer {
           letter inpLetter = j % (inputLetters + 1);
 
           letter outLetter = j / (inputLetters + 1);
-
-          split.table[i][inpLetter].push_back({outLetter, e.second});
+          split.addEdge(inpLetter, outLetter, i, e.second);
         }
       }
     }
@@ -418,8 +388,9 @@ struct Transducer {
   Transducer RtF() {
 
     Transducer convert =
-        Transducer(table.size(), this->inputLetters, this->inputLetters,
-                   this->startNodes, this->finalNodes);
+        Transducer(inputLetters, inputLetters);
+    convert.startNodes = startNodes;
+    convert.finalNodes = finalNodes;
 
     for (state i = 0; i < table.size(); i++) {
       for (letter j = 0; j <= convert.inputLetters; j++) {
@@ -434,8 +405,10 @@ struct Transducer {
 
   Transducer FtR() {
 
-    Transducer convert = Transducer(table.size(), this->inputLetters, 0,
-                                    this->startNodes, this->finalNodes);
+    Transducer convert =
+        Transducer(inputLetters, 0);
+    convert.startNodes = startNodes;
+    convert.finalNodes = finalNodes;
 
     for (state i = 0; i < table.size(); i++) {
       for (letter j = 0; j <= convert.inputLetters; j++) {
@@ -450,7 +423,9 @@ struct Transducer {
 
   Transducer invert() {
 
-    auto invert = Transducer(table.size(), outputLetters, inputLetters, startNodes, finalNodes);
+    auto invert = Transducer(outputLetters, inputLetters);
+    invert.startNodes = startNodes;
+    invert.finalNodes = finalNodes;
 
     for (state i = 0; i < table.size(); i++)
       for (letter j = 0; j <= inputLetters; j++)
@@ -498,8 +473,8 @@ struct Transducer {
 };
 
 void hamiltonianPath(string element, vector<string> &path, set<string> &visited,
-                  set<vector<string>> &paths,
-                  map<string, vector<string>> &adj) {
+                     set<vector<string>> &paths,
+                     map<string, vector<string>> &adj) {
 
   if (path.size() == 92) {
     paths.insert(path);
@@ -519,14 +494,16 @@ void hamiltonianPath(string element, vector<string> &path, set<string> &visited,
   }
 }
 
-// Definition of the fundemental transducers (Transducers that are not derived from the fundemental composition and complementation operations on transducers)
+// Definition of the fundemental transducers (Transducers that are not derived
+// from the fundemental composition and complementation operations on
+// transducers)
 
 Transducer multimark() {
 
-  set<int> sn{0};
-  set<int> fn{0};
 
-  Transducer multimark = Transducer(1, 5, 5, sn, fn);
+  Transducer multimark = Transducer(5, 5);
+  multimark.startNodes.insert(0);
+  multimark.finalNodes.insert(0);
 
   for (int i = 1; i <= multimark.inputLetters; i++) {
     multimark.addEdge(i, i, 0, 0);
@@ -539,10 +516,10 @@ Transducer multimark() {
 
 Transducer singlemark() {
 
-  set<int> sn{0};
-  set<int> fn{0, 3};
-
-  Transducer singlemark = Transducer(4, 4, 5, sn, fn);
+  Transducer singlemark = Transducer(4, 5);
+  singlemark.startNodes.insert(0);
+  singlemark.finalNodes.insert(0);
+  singlemark.finalNodes.insert(3);
 
   for (int i = 1; i <= singlemark.inputLetters; i++) {
     singlemark.addEdge(i, i, 0, 1);
@@ -557,11 +534,9 @@ Transducer singlemark() {
 }
 
 Transducer scissors() {
-
-  set<int> sn{0};
-  set<int> fn{2};
-
-  Transducer scissors = Transducer(3, 5, 4, sn, fn);
+  Transducer scissors = Transducer(5, 4);
+  scissors.startNodes.insert(0);
+  scissors.finalNodes.insert(2);
 
   for (int i = 1; i <= scissors.inputLetters; i++) {
     scissors.addEdge(i, 0, 0, 0);
@@ -578,12 +553,13 @@ Transducer scissors() {
 }
 
 Transducer audioactiveT(bool augmented = false) {
-
-  // it makes sense to place them first i.e
-  set<int> sn{0, 1, 2, 3};
-
   Transducer audioactiveT =
-      Transducer(24, 4 + augmented, 4 + augmented, sn, sn);
+      Transducer(4 + augmented, 4 + augmented);
+
+  for(int i = 0; i <= 3; i++) {
+      audioactiveT.startNodes.insert(i);
+      audioactiveT.finalNodes.insert(i);
+  }
 
   for (int c = 1; c <= 4; ++c) {
 
@@ -616,23 +592,29 @@ Transducer audioactiveT(bool augmented = false) {
 }
 
 int main(int argc, const char *argv[]) {
-  
+
   // We begin by defining a series of useful "example" transducers
-  // These transducers will serve as the fundamental building blocks for the more complex automata, i.e all others will derive from these via FST operations.
+  // These transducers will serve as the fundamental building blocks for the
+  // more complex automata, i.e all others will derive from these via FST
+  // operations.
   auto mmt = multimark();
   auto smt = singlemark();
   auto sc = scissors();
-  // Notably, we define we define the audioactive transducer, modelizing the derivation process for day-one sequences.
+  // Notably, we define we define the audioactive transducer, modelizing the
+  // derivation process for day-one sequences.
   auto at = audioactiveT();
-  // Finally, we define the augmented audioactive transducer, additionally verifying whether there's a . (5, in our internal representation) between 2 equal characters.
+  // Finally, we define the augmented audioactive transducer, additionally
+  // verifying whether there's a . (5, in our internal representation) between 2
+  // equal characters.
   auto aat = audioactiveT(true);
-  
-  // From these 5 relatively simple automata, we will be able to prove the Cosmological Theorem.
-  
+
+  // From these 5 relatively simple automata, we will be able to prove the
+  // Cosmological Theorem.
+
   // We begin by proving the Splitting Theorem.
-  
+
   cout << "Splitting Theorem Proof" << endl;
-  
+
   auto split = aat.FtR().minimize();
   auto splitPrev = split;
 
@@ -642,11 +624,11 @@ int main(int argc, const char *argv[]) {
          << " | Number of States: " << split.table.size() << endl;
 
     count++;
-    
+
     split = aat.compose(split).minimize();
 
     if (split.table.size() == splitPrev.table.size()) {
-      
+
       // TODO: Compress this so it goes into the languageequality check directly
       cout << "Potential Isomorphism" << endl;
       vector<int> inverse1((split.table.size()), -1);
@@ -656,28 +638,33 @@ int main(int argc, const char *argv[]) {
         break;
       }
     }
-    
+
     splitPrev = split;
   }
-  
+
   // The resulting splitting recogniser is, thus, given by: split
   auto &splitRec = split;
-  
-  // From the splitting recognizer, we can construct a recognizer for the set of irreducible words:
-  // As outlined in the paper, we begin by computing the complement for the recogniser of the irreducible words over 𝑊.
+
+  // From the splitting recognizer, we can construct a recognizer for the set of
+  // irreducible words: As outlined in the paper, we begin by computing the
+  // complement for the recogniser of the irreducible words over 𝑊.
   auto c = smt.compose(splitRec).complement();
-  // And further compose it with a filter for the input language of the audioactive transducer to reject the words not in 𝑊
+  // And further compose it with a filter for the input language of the
+  // audioactive transducer to reject the words not in 𝑊
   auto iwr = at.RtF().compose(c);
-  
-  // Prior to proving the main result, let us construct the irreducible factor extractor (Constant minimization allows to assure optimal compositional runtime)
-  
+
+  // Prior to proving the main result, let us construct the irreducible factor
+  // extractor (Constant minimization allows to assure optimal compositional
+  // runtime)
+
   auto sf = splitRec.RtF();
   auto isf = iwr.RtF();
-  
-  auto ife = mmt.compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
-  
+
+  auto ife =
+      mmt.compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
+
   // We can now give the proof of the Cosmological Theorem !
-  
+
   cout << "\nCosmological Theorem Proof" << endl;
 
   auto T = at.compose(ife).minimize();
@@ -751,7 +738,7 @@ int main(int argc, const char *argv[]) {
       "In", "Sn", "Sb", "Te", "I",  "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd",
       "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu", "Hf",
       "Ta", "W",  "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po",
-      "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U", "Np", "Pu"};
+      "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U",  "Np", "Pu"};
 
   set<string> visited;
   set<vector<string>> paths;
@@ -759,7 +746,7 @@ int main(int argc, const char *argv[]) {
   string start = "3";
   vector<string> path;
   hamiltonianPath(start, path, visited, paths, adj);
-  
+
   auto it = paths.begin();
   advance(it, 2);
   path = *it;
@@ -767,8 +754,8 @@ int main(int argc, const char *argv[]) {
 
   cout << "\nCommon Elements (Conway's ordering)" << endl;
   for (int i = 0; i < path.size(); i++) {
-    cout << i + 1 << '\t' << per_elt_names[i] << '\t'
-         << path[i] << string(50 - path[i].size(), ' ') << " (→";
+    cout << i + 1 << '\t' << per_elt_names[i] << '\t' << path[i]
+         << string(50 - path[i].size(), ' ') << " (→";
     for (auto el : adj[path[i]]) {
       auto itr = find(path.begin(), path.end(), el);
       cout << ' ' << per_elt_names[distance(path.begin(), itr)];
@@ -776,18 +763,22 @@ int main(int argc, const char *argv[]) {
     cout << ")" << endl;
   }
   cout << "\nTransuranic Elements" << endl;
-  
+
   count = 0;
-  for(auto el: words){
-    if(find(path.begin(), path.end(), el) == path.end()){
-        cout << path.size() + count + 1 << '\t' << per_elt_names[path.size() + count] << '\t'
-      << el << string(50 - el.size(), ' ') << " (→";
+  for (auto el : words) {
+    if (find(path.begin(), path.end(), el) == path.end()) {
+      cout << path.size() + count + 1 << '\t'
+           << per_elt_names[path.size() + count] << '\t' << el
+           << string(50 - el.size(), ' ') << " (→";
       for (auto elt : adj[el]) {
         auto itr = find(path.begin(), path.end(), elt);
-        cout << ' ' << ((itr != path.end()) ? per_elt_names[distance(path.begin(), itr)]: per_elt_names[path.size() + ((count+1)%2)]);
+        cout << ' '
+             << ((itr != path.end())
+                     ? per_elt_names[distance(path.begin(), itr)]
+                     : per_elt_names[path.size() + ((count + 1) % 2)]);
       }
       cout << ")" << endl;
-        count++;
+      count++;
     }
   }
 }
