@@ -206,7 +206,7 @@ struct Transducer {
     return res_word;
   }
 
-  // Determinization
+  // closure of S under epsilon transitions
   set<state> closure(const set<state> &S) {
     assert(!S.empty());
     vector<state> queue(S.begin(), S.end());
@@ -352,7 +352,7 @@ struct Transducer {
     return complement;
   }
 
-  Transducer RtF() {
+  Transducer filter() {
 
     Transducer convert = Transducer(inputLetters, inputLetters);
     convert.startNodes = startNodes;
@@ -369,7 +369,7 @@ struct Transducer {
     return convert;
   }
 
-  Transducer FtR() {
+  Transducer recognizer() {
 
     Transducer convert = Transducer(inputLetters, 0);
     convert.startNodes = startNodes;
@@ -578,7 +578,7 @@ int main(int argc, const char *argv[]) {
 
   cout << "Splitting Theorem Proof" << endl;
 
-  auto split = aat.FtR().minimize();
+  auto split = aat.recognizer().minimize();
   auto splitPrev = split;
 
   int count = 0;
@@ -615,14 +615,14 @@ int main(int argc, const char *argv[]) {
   auto c = smt.compose(splitRec).complement();
   // And further compose it with a filter for the input language of the
   // audioactive transducer to reject the words not in 𝑊
-  auto iwr = at.RtF().compose(c);
+  auto iwr = at.filter().compose(c);
 
   // Prior to proving the main result, let us construct the irreducible factor
   // extractor (Constant minimization allows to assure optimal compositional
   // runtime)
 
-  auto sf = splitRec.RtF();
-  auto isf = iwr.RtF();
+  auto sf = splitRec.filter();
+  auto isf = iwr.filter();
 
   auto ife =
       mmt.compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
@@ -635,7 +635,7 @@ int main(int argc, const char *argv[]) {
 
   auto T_inv = T.invert();
 
-  auto Tn = T_inv.FtR().minimize();
+  auto Tn = T_inv.recognizer().minimize();
 
   auto Tn_prev = Tn;
 
