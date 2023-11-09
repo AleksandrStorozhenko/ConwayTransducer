@@ -25,8 +25,7 @@ struct Transducer {
   // Transducer Struct Constructors
 
   Transducer(int inputLetters, int outputLetters, int stateCount = 0)
-      : inputLetters(inputLetters), outputLetters(outputLetters) {
-  }
+      : inputLetters(inputLetters), outputLetters(outputLetters) {}
 
   void addEdge(letter inpchar, letter outchar, state A, state B) {
     for (state k = table.size(); k <= max(A, B); k++) {
@@ -42,7 +41,7 @@ struct Transducer {
 
     Transducer trsdComp = Transducer(this->inputLetters, T1.outputLetters);
 
-    // Multisource BFS
+    // Multisource DFS
     vector<pair<state, state>> q;
     set<pair<state, state>> visited;
 
@@ -208,112 +207,81 @@ struct Transducer {
   }
 
   // Determinization
+  set<state> closure(const set<state> &S) {
+    assert(!S.empty());
+    vector<state> queue(S.begin(), S.end());
+    set<state> visited;
 
-  void next(state node, letter l, set<state> &nextStates) {
-    for (auto el : table[node][l]) {
-      nextStates.insert(el.second);
-    }
-  }
+    while (!queue.empty()) {
+      state node = queue.back();
+      queue.pop_back();
+      if (visited.find(node) != visited.end())
+        continue;
 
-  set<state> nextSet(set<state> &S, letter l) {
+      visited.insert(node);
 
-    // S - set of states; T - set of next states;
-
-    set<state> T;
-
-    for (auto q : S) {
-      this->next(q, l, T);
-    }
-
-    return this->closure(T);
-  }
-
-  set<state> closure(set<state> closure) {
-
-    if (closure.size() != 0) {
-      stack<state> S;
-      set<state> visited;
-
-      for (auto el : closure) {
-        S.push(el);
-      }
-
-      while (!S.empty()) {
-
-        state node = S.top();
-        S.pop();
-        visited.insert(node);
-
-        for (auto e : table[node][0]) {
-
-          state out_node = e.second;
-
-          if (visited.find(out_node) == visited.end()) {
-            closure.insert(out_node);
-            S.push(out_node);
-          }
-        }
-      }
+      // iterate over epsilon transitions
+      for (auto e : table[node][0])
+        queue.push_back(e.second);
     }
 
-    return closure;
+    return visited;
   }
 
-  void explore(map<set<state>, state> &T, set<state> &S, Transducer &B) {
-
-    int id = T.at(S);
+  Transducer determinize() {
+    Transducer B = Transducer(inputLetters, outputLetters);
+    vector<state> queue;
+    map<set<state>, state> T;
+    vector<set<state>> states;
 
     // Helper function returns the index of a set of states. If the set of
     // states is met for the first time, assigns a new index and explores it
     // further.
-    auto index = [&](set<state> U) {
-      auto [it, insertion_did_happen] = T.try_emplace(U, T.size());
+    auto index = [&](const set<state> &U) {
+      auto [it, insertion_did_happen] = T.try_emplace(U, states.size());
       int idx = it->second;
 
-      if (insertion_did_happen && U.size() != 0) {
-        explore(T, U, B);
+      if (insertion_did_happen) {
+        auto cl = closure(U);
+        queue.push_back(idx);
+
+        // is it a final state?
+        for (state s : cl) {
+          if (finalNodes.find(s) != finalNodes.end()) {
+            B.finalNodes.insert(idx);
+            break;
+          }
+        }
+
+        states.emplace_back(std::move(cl));
       }
 
       return idx;
     };
 
-    for (letter c = 1; c <= B.inputLetters; c++) {
-      int a = index(nextSet(S, c));
-      B.addEdge(c, 0, id, a);
-    }
-  }
+    B.startNodes.insert(index(startNodes));
 
-  Transducer determinize() {
+    while (!queue.empty()) {
+      state Sidx = queue.back();
+      queue.pop_back();
 
-    Transducer B = Transducer(inputLetters, outputLetters);
+      for (letter c = 1; c <= inputLetters; c++) {
+        set<state> T;
+        for (state node : states[Sidx])
+          for (auto el : table[node][c])
+            T.insert(el.second);
 
-    set<state> I = closure(startNodes);
-
-    map<set<state>, state> T;
-    T.insert({I, T.size()});
-
-    explore(T, I, B);
-
-    // Start & Final Nodes Specification
-
-    if (B.table.size()) {
-
-      B.startNodes.insert(T.at(I));
-
-      for (const auto &el : T)
-        for (int i = 0; i < finalNodes.size(); i++)
-          if (count(el.first.begin(), el.first.end(), i) &&
-              count(finalNodes.begin(), finalNodes.end(), i))
-            B.finalNodes.insert(el.second);
+        if (!T.empty()) {
+          B.addEdge(c, 0, Sidx, index(T));
+        }
+      }
     }
 
     return B;
   }
 
   // Minimization of Recognisers
-
-  Transducer mergeAlph() {
-
+  Transducer zip_alphabet() {
     int newAlph = (inputLetters + 1) * (outputLetters + 1) - 1;
 
     auto rec = Transducer(newAlph, 0);
@@ -328,8 +296,7 @@ struct Transducer {
     return rec;
   }
 
-  Transducer splitAlph(int inputLetters, int outputLetters) {
-
+  Transducer unzip_alphabet(int inputLetters, int outputLetters) {
     auto split = Transducer(inputLetters, outputLetters);
     split.startNodes = startNodes;
     split.finalNodes = finalNodes;
@@ -337,9 +304,7 @@ struct Transducer {
     for (state i = 0; i < table.size(); i++) {
       for (letter j = 0; j <= this->inputLetters; j++) {
         for (auto e : table[i][j]) {
-
           letter inpLetter = j % (inputLetters + 1);
-
           letter outLetter = j / (inputLetters + 1);
           split.addEdge(inpLetter, outLetter, i, e.second);
         }
@@ -353,19 +318,21 @@ struct Transducer {
 
     if (outputLetters) {
       // merge the alphabets
-      auto merge = mergeAlph();
+      auto merge = zip_alphabet();
       auto minimized =
           merge.transpose().determinize().transpose().determinize();
       // split the alphabets
-      auto split = minimized.splitAlph(this->inputLetters, this->outputLetters);
+      auto split =
+          minimized.unzip_alphabet(this->inputLetters, this->outputLetters);
       return split;
     } else {
       return transpose().determinize().transpose().determinize();
     }
   }
 
-  // Automata completion - The implemented algorithm already produces a complete
-  // dfa - The function is therefore not necessary for our implementation
+  // Automata completion - The implemented algorithm already produces a
+  // complete dfa - The function is therefore not necessary for our
+  // implementation
 
   Transducer complement() {
 
@@ -387,8 +354,7 @@ struct Transducer {
 
   Transducer RtF() {
 
-    Transducer convert =
-        Transducer(inputLetters, inputLetters);
+    Transducer convert = Transducer(inputLetters, inputLetters);
     convert.startNodes = startNodes;
     convert.finalNodes = finalNodes;
 
@@ -405,8 +371,7 @@ struct Transducer {
 
   Transducer FtR() {
 
-    Transducer convert =
-        Transducer(inputLetters, 0);
+    Transducer convert = Transducer(inputLetters, 0);
     convert.startNodes = startNodes;
     convert.finalNodes = finalNodes;
 
@@ -500,7 +465,6 @@ void hamiltonianPath(string element, vector<string> &path, set<string> &visited,
 
 Transducer multimark() {
 
-
   Transducer multimark = Transducer(5, 5);
   multimark.startNodes.insert(0);
   multimark.finalNodes.insert(0);
@@ -553,12 +517,11 @@ Transducer scissors() {
 }
 
 Transducer audioactiveT(bool augmented = false) {
-  Transducer audioactiveT =
-      Transducer(4 + augmented, 4 + augmented);
+  Transducer audioactiveT = Transducer(4 + augmented, 4 + augmented);
 
-  for(int i = 0; i <= 3; i++) {
-      audioactiveT.startNodes.insert(i);
-      audioactiveT.finalNodes.insert(i);
+  for (int i = 0; i <= 3; i++) {
+    audioactiveT.startNodes.insert(i);
+    audioactiveT.finalNodes.insert(i);
   }
 
   for (int c = 1; c <= 4; ++c) {
@@ -604,8 +567,8 @@ int main(int argc, const char *argv[]) {
   // derivation process for day-one sequences.
   auto at = audioactiveT();
   // Finally, we define the augmented audioactive transducer, additionally
-  // verifying whether there's a . (5, in our internal representation) between 2
-  // equal characters.
+  // verifying whether there's a . (5, in our internal representation) between
+  // 2 equal characters.
   auto aat = audioactiveT(true);
 
   // From these 5 relatively simple automata, we will be able to prove the
@@ -629,7 +592,8 @@ int main(int argc, const char *argv[]) {
 
     if (split.table.size() == splitPrev.table.size()) {
 
-      // TODO: Compress this so it goes into the languageequality check directly
+      // TODO: Compress this so it goes into the languageequality check
+      // directly
       cout << "Potential Isomorphism" << endl;
       vector<int> inverse1((split.table.size()), -1);
       vector<int> inverse2((split.table.size()), -1);
@@ -645,8 +609,8 @@ int main(int argc, const char *argv[]) {
   // The resulting splitting recogniser is, thus, given by: split
   auto &splitRec = split;
 
-  // From the splitting recognizer, we can construct a recognizer for the set of
-  // irreducible words: As outlined in the paper, we begin by computing the
+  // From the splitting recognizer, we can construct a recognizer for the set
+  // of irreducible words: As outlined in the paper, we begin by computing the
   // complement for the recogniser of the irreducible words over 𝑊.
   auto c = smt.compose(splitRec).complement();
   // And further compose it with a filter for the input language of the
