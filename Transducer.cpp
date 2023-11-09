@@ -42,11 +42,12 @@ struct Transducer {
     table[A][inpchar].push_back({outchar, B});
   }
 
-  Transducer compose(const Transducer &T1) {
+  // compute the compositon of this *then* T1
+  Transducer compose(const Transducer &other) {
     // Map T indexes pairs of states as the states of the composed transducer.
     map<pair<state, state>, state> T;
 
-    Transducer trsdComp = Transducer(this->inputLetters, T1.outputLetters);
+    Transducer trsdComp = Transducer(this->inputLetters, other.outputLetters);
 
     // Multisource DFS
     vector<pair<state, state>> q;
@@ -61,14 +62,14 @@ struct Transducer {
       if (insertion_did_happen) {
         q.push_back(node);
         if (finalNodes.find(node.first) != finalNodes.end() &&
-            T1.finalNodes.find(node.second) != T1.finalNodes.end())
+            other.finalNodes.find(node.second) != other.finalNodes.end())
           trsdComp.finalNodes.insert(idx);
       }
       return idx;
     };
 
     for (auto i : startNodes)
-      for (auto j : T1.startNodes)
+      for (auto j : other.startNodes)
         trsdComp.startNodes.insert(index(pair(i, j)));
 
     while (!q.empty()) {
@@ -77,7 +78,7 @@ struct Transducer {
 
       for (letter i = 0; i <= inputLetters; i++) {
         for (auto edge1 : table[node.first][i]) {
-          for (auto edge2 : T1.table[node.second][edge1.first]) {
+          for (auto edge2 : other.table[node.second][edge1.first]) {
             pair<state, state> next = {edge1.second, edge2.second};
 
             trsdComp.addEdge(i, edge2.first, T.at(node), index(next));
@@ -90,7 +91,7 @@ struct Transducer {
         }
       }
 
-      for (auto edge1 : T1.table[node.second][0]) {
+      for (auto edge1 : other.table[node.second][0]) {
         pair<state, state> next = {node.first, edge1.second};
         trsdComp.addEdge(0, edge1.first, T.at(node), index(next));
       }
@@ -140,6 +141,9 @@ struct Transducer {
     }
   }
 
+  // return all possible output of this given the input. Assumes that the set of
+  // all output is indeed finite and that the transducer does not have a cycle
+  // of epsilon-transitions.
   template <typename It> vector<vector<letter>> run(It first, It last) {
     vector<letter> out;
     vector<vector<letter>> ret;
@@ -170,6 +174,7 @@ struct Transducer {
     return false;
   }
 
+  // return true if the input is accepted by this.
   template <typename It> bool match(It first, It last) {
     for (auto s : startNodes) {
       if (match(first, last, s))
@@ -527,7 +532,7 @@ int main(int argc, const char *argv[]) {
     auto next = aaT.compose(splitR).minimize();
 
     if (splitR == next) {
-      cout << "Fixed point found" << endl;
+      cout << "Fixed point found\n" << endl;
       break;
     }
 
@@ -536,7 +541,7 @@ int main(int argc, const char *argv[]) {
 
   // PROOF OF THE COSMOLOGICAL THEOREM
 
-  cout << "\nCosmological Theorem Proof" << endl;
+  cout << "Cosmological Theorem Proof" << endl;
 
   // From the splitting recognizer, we can construct a recognizer for the set
   // of irreducible words: As outlined in the paper, we begin by computing the
@@ -575,7 +580,7 @@ int main(int argc, const char *argv[]) {
     auto next = Ttranspose.compose(elementR).minimize();
 
     if (next == elementR) {
-      cout << "Fixed point found" << endl;
+      cout << "Fixed point found\n" << endl;
       break;
     }
 
@@ -674,7 +679,6 @@ int main(int argc, const char *argv[]) {
     }
     cout << ")" << endl;
   }
-  cout << "\nTransuranic Elements" << endl;
 
   return 0;
 }
