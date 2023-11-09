@@ -25,6 +25,13 @@ struct Transducer {
   Transducer(int inputLetters, int outputLetters, int stateCount = 0)
       : inputLetters(inputLetters), outputLetters(outputLetters) {}
 
+  bool operator==(const Transducer &other) const {
+    return inputLetters == other.inputLetters &&
+           outputLetters == other.outputLetters &&
+           startNodes == other.startNodes && finalNodes == other.finalNodes &&
+           table == other.table;
+  };
+
   void addEdge(letter inpchar, letter outchar, state A, state B) {
     for (state k = table.size(); k <= max(A, B); k++) {
       table.push_back(vector<vector<pair<letter, state>>>(inputLetters + 1));
@@ -397,42 +404,6 @@ struct Transducer {
 
     return invert;
   }
-
-  bool languageEquality(state u, state v, vector<state> &inverse1,
-                        vector<state> &inverse2, Transducer &T1) {
-
-    // u - node of the first graph;
-    // v - node of the second graph;
-
-    inverse1[u] = v;
-    inverse2[v] = u;
-
-    for (letter i = 1; i <= inputLetters; i++) {
-
-      state n1, n2;
-
-      if ((table[u][i].size() == (T1.table)[u][i].size())) {
-        if (table[u][i].size()) {
-          n1 = table[u][i][0].second;
-          n2 = T1.table[v][i][0].second;
-        } else {
-          continue;
-        }
-      } else {
-        return false;
-      }
-
-      if (inverse1[n1] == -1 && inverse2[n2] == -1) {
-        // if we simply return the language inequality directly then just
-        // whichever letter is executed first will fully determine
-        if (!languageEquality(n1, n2, inverse1, inverse2, T1))
-          return false;
-      } else if (inverse1[n1] != n2 || inverse2[n2] != n1) {
-        return false;
-      }
-    }
-    return true;
-  }
 };
 
 void hamiltonianPath(string element, vector<string> &path, set<string> &visited,
@@ -514,7 +485,7 @@ Transducer scissors() {
   return scissors.minimize();
 }
 
-Transducer audioactiveT(bool augmented = false) {
+Transducer audioactive(bool augmented = false) {
   Transducer audioactiveT = Transducer(4 + augmented, 4 + augmented);
 
   for (int i = 0; i <= 3; i++) {
@@ -558,16 +529,16 @@ int main(int argc, const char *argv[]) {
   // These transducers will serve as the fundamental building blocks for the
   // more complex automata, i.e all others will derive from these via FST
   // operations.
-  auto mmt = multimark();
-  auto smt = singlemark();
-  auto sc = scissors();
+  auto multimarkT = multimark();
+  auto singlemarkT = singlemark();
+  auto scissorsT = scissors();
   // Notably, we define we define the audioactive transducer, modelizing the
   // derivation process for day-one sequences.
-  auto at = audioactiveT();
+  auto audioactiveT = audioactive();
   // Finally, we define the augmented audioactive transducer, additionally
   // verifying whether there's a . (5, in our internal representation) between
   // 2 equal characters.
-  auto aat = audioactiveT(true);
+  auto aaT = audioactive(true);
 
   // From these 5 relatively simple automata, we will be able to prove the
   // Cosmological Theorem.
@@ -576,44 +547,33 @@ int main(int argc, const char *argv[]) {
 
   cout << "Splitting Theorem Proof" << endl;
 
-  auto split = aat.recognizer().minimize();
-  auto splitPrev = split;
+  auto splitR = aaT.recognizer().minimize();
 
   int count = 0;
   while (true) {
-    cout << "Composition degree n: " << count
-         << " | Number of States: " << split.table.size() << endl;
+    cout << "Composition degree n: " << count++
+         << " | Number of States: " << splitR.table.size() << endl;
 
-    count++;
+    auto next = aaT.compose(splitR).minimize();
 
-    split = aat.compose(split).minimize();
-
-    if (split.table.size() == splitPrev.table.size()) {
-
-      // TODO: Compress this so it goes into the languageequality check
-      // directly
-      cout << "Potential Isomorphism" << endl;
-      vector<int> inverse1((split.table.size()), -1);
-      vector<int> inverse2((split.table.size()), -1);
-      if (split.languageEquality(0, 0, inverse1, inverse2, splitPrev)) {
-        cout << "Verified Input Language Equality" << endl;
-        break;
-      }
+    if (splitR == next) {
+      cout << "Fix point found" << endl;
+      break;
     }
 
-    splitPrev = split;
+    splitR = next;
   }
 
   // The resulting splitting recogniser is, thus, given by: split
-  auto &splitRec = split;
+  auto &splitRec = splitR;
 
   // From the splitting recognizer, we can construct a recognizer for the set
   // of irreducible words: As outlined in the paper, we begin by computing the
   // complement for the recogniser of the irreducible words over 𝑊.
-  auto c = smt.compose(splitRec).complement();
+  auto c = singlemarkT.compose(splitRec).complement();
   // And further compose it with a filter for the input language of the
   // audioactive transducer to reject the words not in 𝑊
-  auto iwr = at.filter().compose(c);
+  auto iwr = audioactiveT.filter().compose(c);
 
   // Prior to proving the main result, let us construct the irreducible factor
   // extractor (Constant minimization allows to assure optimal compositional
@@ -622,20 +582,23 @@ int main(int argc, const char *argv[]) {
   auto sf = splitRec.filter();
   auto isf = iwr.filter();
 
-  auto ife =
-      mmt.compose(sf).minimize().compose(sc).minimize().compose(isf).minimize();
+  auto ife = multimarkT.compose(sf)
+                 .minimize()
+                 .compose(scissorsT)
+                 .minimize()
+                 .compose(isf)
+                 .minimize();
 
   // We can now give the proof of the Cosmological Theorem !
 
   cout << "\nCosmological Theorem Proof" << endl;
 
-  auto T = at.compose(ife).minimize();
+  auto T = audioactiveT.compose(ife).minimize();
 
   auto T_inv = T.invert();
 
   auto Tn = T_inv.recognizer().minimize();
 
-  auto Tn_prev = Tn;
 
   count = 1;
   while (true) {
@@ -645,23 +608,14 @@ int main(int argc, const char *argv[]) {
     count++;
 
     // Can still make it more efficient by
-    Tn = T_inv.compose(Tn).minimize();
+    auto next = T_inv.compose(Tn).minimize();
 
-    if (Tn_prev.table.size() == Tn.table.size()) {
-
-      cout << "Potential Isomorphism" << endl;
-
-      if (Tn.table.size() == Tn_prev.table.size()) {
-        vector<int> inverse1((Tn.table.size()), -1);
-        vector<int> inverse2((Tn.table.size()), -1);
-        if (Tn.languageEquality(0, 0, inverse1, inverse2, Tn_prev)) {
-          cout << "Verified Output Language Equality" << endl;
-          break;
-        }
-      }
+    if (next == Tn) {
+      cout << "Fix point found" << endl;
+      break;
     }
 
-    Tn_prev = Tn;
+    Tn = next;
   }
 
   Tn = Tn.invert();
@@ -674,7 +628,7 @@ int main(int argc, const char *argv[]) {
 
   for (auto word : words) {
 
-    auto deriv = ife.traverse(*at.traverse(word).begin());
+    auto deriv = ife.traverse(*audioactiveT.traverse(word).begin());
 
     for (auto el : deriv) {
       if (adj.count(word)) {
