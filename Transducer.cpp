@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <chrono>
 #include <iostream>
+#include <iomanip>
 #include <map>
 #include <set>
 #include <string>
@@ -40,7 +41,7 @@ struct Transducer {
     table[A][inpchar].push_back({outchar, B});
   }
 
-  Transducer compose(Transducer &T1) {
+  Transducer compose(const Transducer &T1) {
     // Map T indexes pairs of states as the states of the composed transducer.
     map<pair<state, state>, state> T;
 
@@ -97,17 +98,17 @@ struct Transducer {
     return trsdComp;
   }
 
-  Transducer transpose() {
-    Transducer transpose = Transducer(inputLetters, outputLetters);
-    transpose.startNodes = finalNodes;
-    transpose.finalNodes = startNodes;
+  Transducer reverse() {
+    Transducer rev = Transducer(inputLetters, outputLetters);
+    rev.startNodes = finalNodes;
+    rev.finalNodes = startNodes;
 
     for (state i = 0; i < table.size(); i++)
       for (letter c = 0; c <= inputLetters; c++)
         for (auto edge : table[i][c])
-          transpose.addEdge(c, edge.first, edge.second, i);
+          rev.addEdge(c, edge.first, edge.second, i);
 
-    return transpose;
+    return rev;
   }
 
   void backtrack(string word, state node, string &out, set<string> &res) {
@@ -325,13 +326,13 @@ struct Transducer {
       // merge the alphabets
       auto merge = zip_alphabet();
       auto minimized =
-          merge.transpose().determinize().transpose().determinize();
+          merge.reverse().determinize().reverse().determinize();
       // split the alphabets
       auto split =
           minimized.unzip_alphabet(this->inputLetters, this->outputLetters);
       return split;
     } else {
-      return transpose().determinize().transpose().determinize();
+      return reverse().determinize().reverse().determinize();
     }
   }
 
@@ -391,18 +392,18 @@ struct Transducer {
     return convert;
   }
 
-  Transducer invert() {
+  Transducer transpose() {
 
-    auto invert = Transducer(outputLetters, inputLetters);
-    invert.startNodes = startNodes;
-    invert.finalNodes = finalNodes;
+    auto transp = Transducer(outputLetters, inputLetters);
+    transp.startNodes = startNodes;
+    transp.finalNodes = finalNodes;
 
     for (state i = 0; i < table.size(); i++)
       for (letter j = 0; j <= inputLetters; j++)
         for (auto edge : table[i][j])
-          invert.addEdge(edge.first, j, i, edge.second);
+          transp.addEdge(edge.first, j, i, edge.second);
 
-    return invert;
+    return transp;
   }
 };
 
@@ -525,10 +526,11 @@ Transducer audioactive(bool augmented = false) {
 
 int main(int argc, const char *argv[]) {
 
+  // CONSTRUCTION OF THE SPLITTING RECOGNIZER
+
   // We begin by defining a series of useful "example" transducers
   // These transducers will serve as the fundamental building blocks for the
-  // more complex automata, i.e all others will derive from these via FST
-  // operations.
+  // more complex automata, i.e all others will derive from these via composition.
   auto multimarkT = multimark();
   auto singlemarkT = singlemark();
   auto scissorsT = scissors();
@@ -551,74 +553,75 @@ int main(int argc, const char *argv[]) {
 
   int count = 0;
   while (true) {
-    cout << "Composition degree n: " << count++
-         << " | Number of States: " << splitR.table.size() << endl;
+    cout << "Composition order n: " << setw(2) << count++
+         << " | Number of States: " << setw(3) << splitR.table.size() << endl;
 
     auto next = aaT.compose(splitR).minimize();
 
     if (splitR == next) {
-      cout << "Fix point found" << endl;
+      cout << "Fixed point found" << endl;
       break;
     }
 
     splitR = next;
   }
 
-  // The resulting splitting recogniser is, thus, given by: split
-  auto &splitRec = splitR;
+  // PROOF OF THE COSMOLOGICAL THEOREM
+
+  cout << "\nCosmological Theorem Proof" << endl;
 
   // From the splitting recognizer, we can construct a recognizer for the set
   // of irreducible words: As outlined in the paper, we begin by computing the
-  // complement for the recogniser of the irreducible words over 𝑊.
-  auto c = singlemarkT.compose(splitRec).complement();
-  // And further compose it with a filter for the input language of the
-  // audioactive transducer to reject the words not in 𝑊
-  auto iwr = audioactiveT.filter().compose(c);
+  // complement for the recogniser of the reducible words over W,
+  // and further compose it with a filter for the input language of the
+  // audioactive transducer to reject the words not in W.
+  auto irreducibleR = singlemarkT.compose(splitR).complement();
+  irreducibleR = audioactiveT.filter().compose(irreducibleR);
 
   // Prior to proving the main result, let us construct the irreducible factor
-  // extractor (Constant minimization allows to assure optimal compositional
+  // extractor (Constant minimization allows to assure better compositional
   // runtime)
 
-  auto sf = splitRec.filter();
-  auto isf = iwr.filter();
-
-  auto ife = multimarkT.compose(sf)
+  auto atomT = multimarkT.compose(splitR.filter())
                  .minimize()
                  .compose(scissorsT)
                  .minimize()
-                 .compose(isf)
+                 .compose(irreducibleR.filter())
                  .minimize();
 
   // We can now give the proof of the Cosmological Theorem !
 
-  cout << "\nCosmological Theorem Proof" << endl;
+  auto T = audioactiveT.compose(atomT).minimize();
 
-  auto T = audioactiveT.compose(ife).minimize();
-
-  auto T_inv = T.invert();
-
-  auto Tn = T_inv.recognizer().minimize();
-
+  // we want to work with recognizers, not generators, so we transpose everything
+  auto Ttranspose = T.transpose();
+  auto Tn = Ttranspose.recognizer().minimize();
 
   count = 1;
   while (true) {
 
-    cout << "Composition degree n: " << count
-         << " | Number of States: " << Tn.table.size() << endl;
-    count++;
+    cout << "Composition order n: " << setw(2) << count++
+         << " | Number of States: " << setw(3) << Tn.table.size() << endl;
 
-    // Can still make it more efficient by
-    auto next = T_inv.compose(Tn).minimize();
+    auto next = Ttranspose.compose(Tn).minimize();
 
     if (next == Tn) {
-      cout << "Fix point found" << endl;
+      cout << "Fixed point found" << endl;
       break;
     }
 
     Tn = next;
   }
 
-  Tn = Tn.invert();
+  Tn = Tn.transpose();
+
+
+  // COMPILATION OF THE ELEMENT TABLE
+
+  // Tn is now a generator with finite output language, consisting of the 92
+  // common elements and the 2 transuranic elements. We enumerate the language
+  // and numer the elements so that the n-th element appears in the derication
+  // of the (n+1)-th element.
 
   set<string> words = Tn.getElements();
 
@@ -628,7 +631,7 @@ int main(int argc, const char *argv[]) {
 
   for (auto word : words) {
 
-    auto deriv = ife.traverse(*audioactiveT.traverse(word).begin());
+    auto deriv = atomT.traverse(*audioactiveT.traverse(word).begin());
 
     for (auto el : deriv) {
       if (adj.count(word)) {
