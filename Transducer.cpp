@@ -1,8 +1,8 @@
 #include <algorithm>
 #include <assert.h>
 #include <chrono>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <map>
 #include <set>
 #include <string>
@@ -111,6 +111,46 @@ struct Transducer {
     return rev;
   }
 
+  template <typename It>
+  void run(It first, It last, state node, vector<letter> &out,
+           vector<vector<letter>> &ret) {
+    if (first == last) {
+      if (finalNodes.find(node) != finalNodes.end()) {
+        ret.push_back(out);
+      }
+    }
+
+    for (auto e : table[node][0]) {
+      if (e.first)
+        out.push_back(e.first);
+      run(first, last, e.second, out, ret);
+      if (e.first)
+        out.pop_back();
+    }
+
+    if (first < last) {
+      for (auto e : table[node][*first]) {
+        if (e.first)
+          out.push_back(e.first);
+        run(first + 1, last, e.second, out, ret);
+        if (e.first)
+          out.pop_back();
+      }
+    }
+  }
+
+  template<typename It>
+  vector<vector<letter>> run(It first, It last) {
+    vector<letter> out;
+    vector<vector<letter>> ret;
+
+    for (state s :startNodes) {
+      run(first, last, s, out, ret);
+    }
+
+    return ret;
+  }
+
   void backtrack(string word, state node, string &out, set<string> &res) {
     if (word.size() == 0) {
       if (count(finalNodes.begin(), finalNodes.end(), node)) {
@@ -150,66 +190,6 @@ struct Transducer {
     }
 
     return res;
-  }
-
-  // Element Retrieval Backtrack Function
-
-  void dfs(state node, vector<state> path, string &word,
-           set<vector<state>> &res_path, set<string> &res_word,
-           set<state> &visited) {
-
-    if (count((this->finalNodes).begin(), (this->finalNodes).end(), node)) {
-
-      res_path.insert(path);
-      res_word.insert(word);
-
-      int total_edges = 0;
-
-      for (state i = 0; i < table.size(); i++) {
-        total_edges += table[i].size();
-        if (total_edges)
-          break;
-      }
-
-      if (!total_edges)
-        return;
-    }
-
-    for (letter i = 0; i <= inputLetters; i++) {
-      for (auto edge : table[node][i]) {
-
-        if (visited.find(edge.second) != visited.end())
-          continue;
-
-        path.push_back(edge.second);
-        string s = to_string(edge.first);
-        word += s;
-        visited.insert(edge.second);
-
-        dfs(edge.second, path, word, res_path, res_word, visited);
-
-        visited.erase(edge.second);
-        word = word.substr(0, word.size() - 1);
-        path.pop_back();
-      }
-    }
-  }
-
-  set<string> getElements() {
-    // Backtrack through the graph to get the elements (There are no cycles), so
-    // we just find all the possible paths through the graph
-
-    set<vector<state>> res_path;
-    set<string> res_word;
-
-    for (auto s : startNodes) {
-      set<state> visited;
-      vector<state> path{s};
-      string w = "";
-      dfs(s, path, w, res_path, res_word, visited);
-    }
-
-    return res_word;
   }
 
   // closure of S under epsilon transitions
@@ -325,8 +305,7 @@ struct Transducer {
     if (outputLetters) {
       // merge the alphabets
       auto merge = zip_alphabet();
-      auto minimized =
-          merge.reverse().determinize().reverse().determinize();
+      auto minimized = merge.reverse().determinize().reverse().determinize();
       // split the alphabets
       auto split =
           minimized.unzip_alphabet(this->inputLetters, this->outputLetters);
@@ -530,7 +509,8 @@ int main(int argc, const char *argv[]) {
 
   // We begin by defining a series of useful "example" transducers
   // These transducers will serve as the fundamental building blocks for the
-  // more complex automata, i.e all others will derive from these via composition.
+  // more complex automata, i.e all others will derive from these via
+  // composition.
   auto multimarkT = multimark();
   auto singlemarkT = singlemark();
   auto scissorsT = scissors();
@@ -583,17 +563,18 @@ int main(int argc, const char *argv[]) {
   // runtime)
 
   auto atomT = multimarkT.compose(splitR.filter())
-                 .minimize()
-                 .compose(scissorsT)
-                 .minimize()
-                 .compose(irreducibleR.filter())
-                 .minimize();
+                   .minimize()
+                   .compose(scissorsT)
+                   .minimize()
+                   .compose(irreducibleR.filter())
+                   .minimize();
 
   // We can now give the proof of the Cosmological Theorem !
 
   auto T = audioactiveT.compose(atomT).minimize();
 
-  // we want to work with recognizers, not generators, so we transpose everything
+  // we want to work with recognizers, not generators, so we transpose
+  // everything
   auto Ttranspose = T.transpose();
   auto Tn = Ttranspose.recognizer().minimize();
 
@@ -615,7 +596,6 @@ int main(int argc, const char *argv[]) {
 
   Tn = Tn.transpose();
 
-
   // COMPILATION OF THE ELEMENT TABLE
 
   // Tn is now a generator with finite output language, consisting of the 92
@@ -623,7 +603,17 @@ int main(int argc, const char *argv[]) {
   // and numer the elements so that the n-th element appears in the derication
   // of the (n+1)-th element.
 
-  set<string> words = Tn.getElements();
+  set<string> words;
+
+  vector<Transducer::letter> empty;
+  auto lang = Tn.run(empty.begin(), empty.end());
+  for(auto l : lang) {
+    string w;
+    for(auto i : l)
+      w.append(1, (char)('0' + i));
+    cout << w << endl;
+    words.emplace(std::move(w));
+  }
 
   cout << "\nNumber of Elements: " << words.size() << endl;
 
