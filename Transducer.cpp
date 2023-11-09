@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -139,57 +140,42 @@ struct Transducer {
     }
   }
 
-  template<typename It>
-  vector<vector<letter>> run(It first, It last) {
+  template <typename It> vector<vector<letter>> run(It first, It last) {
     vector<letter> out;
     vector<vector<letter>> ret;
 
-    for (state s :startNodes) {
+    for (state s : startNodes) {
       run(first, last, s, out, ret);
     }
 
     return ret;
   }
 
-  void backtrack(string word, state node, string &out, set<string> &res) {
-    if (word.size() == 0) {
-      if (count(finalNodes.begin(), finalNodes.end(), node)) {
-        res.insert(out);
-      }
-      return;
+  template <typename It> bool match(It first, It last, state node) {
+    if (first == last && finalNodes.find(node) != finalNodes.end())
+      return true;
+
+    for (auto e : table[node][0]) {
+      if (match(first, last, e.second))
+        return true;
     }
 
-    for (auto edge : table[node][(int)(word[0] - 48)]) {
-
-      if (((int)(word[0]) - 48 == edge.first) and (edge.first == 0) &&
-          node == edge.second) {
-        continue;
-      }
-
-      if (edge.first != 0) {
-        out += to_string(edge.first);
-      }
-
-      backtrack(word.substr(1), edge.second, out, res);
-      backtrack("0" + word.substr(1), edge.second, out, res);
-
-      if (edge.first != 0) {
-        out = out.substr(0, out.size() - 1);
+    if (first < last) {
+      for (auto e : table[node][*first]) {
+        if (match(first + 1, last, e.second))
+          return true;
       }
     }
+
+    return false;
   }
 
-  set<string> traverse(string word) {
-    set<string> res;
-    string out = "";
-
-    for (auto sn : this->startNodes) {
-
-      this->backtrack(word, sn, out, res);
-      this->backtrack("0" + word, sn, out, res);
+  template <typename It> bool match(It first, It last) {
+    for (auto s : startNodes) {
+      if (match(first, last, s))
+        return true;
     }
-
-    return res;
+    return false;
   }
 
   // closure of S under epsilon transitions
@@ -386,26 +372,28 @@ struct Transducer {
   }
 };
 
-void hamiltonianPath(string element, vector<string> &path, set<string> &visited,
-                     set<vector<string>> &paths,
-                     map<string, vector<string>> &adj) {
+bool hamiltonian_path(const vector<vector<size_t>> &adj, size_t element,
+                      size_t size, vector<size_t> &path, set<size_t> &visited) {
+  if (visited.find(element) != visited.end())
+    return false;
 
-  if (path.size() == 92) {
-    paths.insert(path);
-    // The 2 unvisited elements correspond to the transuranic elements
-    return;
+  visited.insert(element);
+  path.push_back(element);
+  size--;
+
+  if (size == 0)
+    return true;
+
+  for (auto next : adj[element]) {
+    if (hamiltonian_path(adj, next, size, path, visited))
+      return true;
   }
 
-  for (auto el_next : adj[element]) {
+  visited.erase(element);
+  path.pop_back();
+  size++;
 
-    if (visited.find(element) == visited.end()) {
-      path.push_back(element);
-      visited.insert(element);
-      hamiltonianPath(el_next, path, visited, paths, adj);
-      path.pop_back();
-      visited.erase(element);
-    }
-  }
+  return false;
 }
 
 // Definition of the fundemental transducers (Transducers that are not derived
@@ -576,70 +564,94 @@ int main(int argc, const char *argv[]) {
   // we want to work with recognizers, not generators, so we transpose
   // everything
   auto Ttranspose = T.transpose();
-  auto Tn = Ttranspose.recognizer().minimize();
+  auto elementR = Ttranspose.recognizer().minimize();
 
   count = 1;
   while (true) {
 
     cout << "Composition order n: " << setw(2) << count++
-         << " | Number of States: " << setw(3) << Tn.table.size() << endl;
+         << " | Number of States: " << setw(3) << elementR.table.size() << endl;
 
-    auto next = Ttranspose.compose(Tn).minimize();
+    auto next = Ttranspose.compose(elementR).minimize();
 
-    if (next == Tn) {
+    if (next == elementR) {
       cout << "Fixed point found" << endl;
       break;
     }
 
-    Tn = next;
+    elementR = next;
   }
 
-  Tn = Tn.transpose();
+  // element generator
+  auto elementG = elementR.transpose();
 
   // COMPILATION OF THE ELEMENT TABLE
 
-  // Tn is now a generator with finite output language, consisting of the 92
+  // atomT is now a generator with finite output language, consisting of the 92
   // common elements and the 2 transuranic elements. We enumerate the language
   // and numer the elements so that the n-th element appears in the derication
   // of the (n+1)-th element.
 
-  set<string> words;
+  auto makesplitT = singlemarkT.compose(splitR.filter()).minimize();
 
   vector<Transducer::letter> empty;
-  auto lang = Tn.run(empty.begin(), empty.end());
-  for(auto l : lang) {
-    string w;
-    for(auto i : l)
-      w.append(1, (char)('0' + i));
-    cout << w << endl;
-    words.emplace(std::move(w));
-  }
+  vector<vector<Transducer::letter>> elements =
+      elementG.run(empty.begin(), empty.end());
+  vector<vector<size_t>> derivation(elements.size());
 
-  cout << "\nNumber of Elements: " << words.size() << endl;
+  // compute the derivation of each element in terms of the other elements
+  for (size_t i = 0; i < elements.size(); i++) {
+    // a vector containing a vector containing the unique derivation of
+    // elements[i]
+    vector<vector<Transducer::letter>> queue =
+        audioactiveT.run(elements[i].begin(), elements[i].end());
+    assert(queue.size() == 1);
 
-  map<string, vector<string>> adj;
+    // splits the derivation into irreducible factors
+    while (!queue.empty()) {
+      auto w = queue.back();
+      queue.pop_back();
+      auto trysplit = makesplitT.run(w.begin(), w.end());
 
-  for (auto word : words) {
-
-    auto deriv = atomT.traverse(*audioactiveT.traverse(word).begin());
-
-    for (auto el : deriv) {
-      if (adj.count(word)) {
-        adj[word].push_back(el);
+      if (!trysplit.empty()) {
+        auto split = trysplit[0];
+        auto mark = find(split.begin(), split.end(), 5);
+        queue.push_back(vector(mark + 1, split.end()));
+        queue.push_back(vector(split.begin(), mark));
       } else {
-        vector<string> elts;
-        elts.push_back(el);
-        adj.insert({word, elts});
+        auto itfact = find(elements.begin(), elements.end(), w);
+        assert(itfact != elements.end());
+        derivation[i].push_back(itfact - elements.begin());
       }
     }
   }
 
-  // So now we have the elements and want to construct an adjacency list from
-  // them;
+  vector<size_t> path, inv;
+  size_t uranium =
+      find(elements.begin(), elements.end(), vector<Transducer::letter>{3}) -
+      elements.begin();
 
-  // We also want the mapping between elements and atomic labelings;
+  {
+    // Recover Conway's ordering of the elements
+    set<size_t> visited;
+    assert(hamiltonian_path(derivation, uranium, 92, path, visited));
+    reverse(path.begin(), path.end());
 
-  vector<string> per_elt_names{
+    for (size_t i = 0; i < elements.size(); i++) {
+      if (elements[i].back() == 4)
+        path.push_back(i);
+    }
+
+    assert(path.size() == 94);
+
+    for (size_t i = 0; i < path.size(); i++)
+      inv.push_back(i);
+
+    sort(inv.begin(), inv.end(),
+         [&](size_t i, size_t j) { return path[i] < path[j]; });
+  }
+
+  vector<string> names{
       "H",  "He", "Li", "Be", "B",  "C",  "N",  "O",  "F",  "Ne", "Na", "Mg",
       "Al", "Si", "P",  "S",  "Cl", "Ar", "K",  "Ca", "Sc", "Ti", "V",  "Cr",
       "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga", "Ge", "As", "Se", "Br", "Kr",
@@ -649,45 +661,20 @@ int main(int argc, const char *argv[]) {
       "Ta", "W",  "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po",
       "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U",  "Np", "Pu"};
 
-  set<string> visited;
-  set<vector<string>> paths;
+  cout << "Element table" << endl;
+  for (size_t i = 0; i < elements.size(); i++) {
+    string elstr;
+    for (auto a : elements[path[i]])
+      elstr.append(1, (char)('0' + a));
 
-  string start = "3";
-  vector<string> path;
-  hamiltonianPath(start, path, visited, paths, adj);
-
-  auto it = paths.begin();
-  advance(it, 2);
-  path = *it;
-  reverse(path.begin(), path.end());
-
-  cout << "\nCommon Elements (Conway's ordering)" << endl;
-  for (int i = 0; i < path.size(); i++) {
-    cout << i + 1 << '\t' << per_elt_names[i] << '\t' << path[i]
-         << string(50 - path[i].size(), ' ') << " (→";
-    for (auto el : adj[path[i]]) {
-      auto itr = find(path.begin(), path.end(), el);
-      cout << ' ' << per_elt_names[distance(path.begin(), itr)];
+    cout << i + 1 << '\t' << names[i] << '\t' << std::left << setw(50) << elstr
+         << " (→";
+    for (auto d : derivation[path[i]]) {
+      cout << ' ' << names[inv[d]];
     }
     cout << ")" << endl;
   }
   cout << "\nTransuranic Elements" << endl;
 
-  count = 0;
-  for (auto el : words) {
-    if (find(path.begin(), path.end(), el) == path.end()) {
-      cout << path.size() + count + 1 << '\t'
-           << per_elt_names[path.size() + count] << '\t' << el
-           << string(50 - el.size(), ' ') << " (→";
-      for (auto elt : adj[el]) {
-        auto itr = find(path.begin(), path.end(), elt);
-        cout << ' '
-             << ((itr != path.end())
-                     ? per_elt_names[distance(path.begin(), itr)]
-                     : per_elt_names[path.size() + ((count + 1) % 2)]);
-      }
-      cout << ")" << endl;
-      count++;
-    }
-  }
+  return 0;
 }
