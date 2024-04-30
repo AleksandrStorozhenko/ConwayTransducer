@@ -1,10 +1,8 @@
 #include <algorithm>
 #include <assert.h>
-#include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <map>
-#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -12,14 +10,11 @@
 using namespace std;
 
 struct Transducer {
-
   using letter = int;
   using state = int;
 
   int inputLetters, outputLetters;
-
   set<state> startNodes, finalNodes;
-
   vector<vector<vector<pair<letter, state>>>> table;
 
   // Transducer Struct Constructors
@@ -292,7 +287,6 @@ struct Transducer {
   }
 
   Transducer minimize() {
-
     if (outputLetters) {
       // merge the alphabets
       auto merge = zip_alphabet();
@@ -311,7 +305,6 @@ struct Transducer {
   // implementation
 
   Transducer complement() {
-
     // The final determinization produces a complete dfa
     auto complement = minimize();
 
@@ -329,7 +322,6 @@ struct Transducer {
   }
 
   Transducer filter() {
-
     Transducer convert = Transducer(inputLetters, inputLetters);
     convert.startNodes = startNodes;
     convert.finalNodes = finalNodes;
@@ -346,7 +338,6 @@ struct Transducer {
   }
 
   Transducer recognizer() {
-
     Transducer convert = Transducer(inputLetters, 0);
     convert.startNodes = startNodes;
     convert.finalNodes = finalNodes;
@@ -363,7 +354,6 @@ struct Transducer {
   }
 
   Transducer transpose() {
-
     auto transp = Transducer(outputLetters, inputLetters);
     transp.startNodes = startNodes;
     transp.finalNodes = finalNodes;
