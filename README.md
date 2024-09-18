@@ -8,7 +8,7 @@ This repository provides the C++ implementation supporting the computational pro
 
 ## Overview
 
-We implement a key automaton-based structure—the **Transducer**—which models finite-state machines essential to proving both Conway’s **Cosmological Theorem** and the **Splitting Theorem**. The automata approach modernizes Conway's 'manual' methods used to prove these theorems, providing a runtime efficient computational demonstration that verifies Conway's result of audioactive sequence stabilization after 24 iterations.
+We implement a key automaton-based structure—the **Transducer**—which models finite-state machines essential to proving both Conway’s **Cosmological Theorem** and the **Splitting Theorem**. The automata approach modernizes Conway's 'manual' methods used to prove these theorems, providing a runtime efficient computational demonstration that verifies Conway's result of audioactive sequence stabilization after 24 derivations.
 
 ## Core Concepts
 
