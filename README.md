@@ -16,7 +16,7 @@ We implement a key automaton-based structure—the **Transducer**—which models
 Central to the implementation, the Transducer struct models finite-state machines. This data structure supports a range of operations necessary for the automata-theoretic proof:
 
 - **Transition Management**: The `addEdge` method allows for the definition of transitions between states.
-- **Transducer Operations**: Functions like `compose`, `determinize`, `reverse`, and `minimize` enable the verification of the theorem's results through composition and minimization of transducers.
+- **Transducer Operations**: Methods like `compose`, `determinize`, `reverse`, and `minimize` enable the verification of the theorem's results through composition and minimization of transducers.
 
 ### 2. **Fundamental Transducers**
 
