@@ -44,11 +44,11 @@ The `main()` function implements the proof of the **Cosmological Theorem** throu
     ```
 2. Navigate to the directory:
     ```bash
-    cd conway-cosmological-automata
+    cd ConwayTransducer
     ```
 3. Compile the code:
     ```bash
-    g++ -std=c++17 -o conway cosmological_theorem.cpp
+    g++ -std=c++17 -o conway Transducer.cpp
     ```
 4. Run the program:
     ```bash
