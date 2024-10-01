@@ -1,4 +1,4 @@
-# Conway’s Cosmological Theorem and Automata Theory: A C++ Implementation
+# Conway’s Cosmological Theorem and Automata Theory: C++ Implementation
 
 This repository provides the C++ implementation supporting the computational proofs detailed in our *American Mathematical Monthly* paper, *"Conway’s Cosmological Theorem and Automata Theory"* (also available on [arXiv](https://arxiv.org/abs/2409.20341v1)). The work introduces a novel approach to Conway’s theorem through automata theory, offering a more systematic understanding than previous *ad hoc* proofs. This implementation complements the theoretical developments by providing a computational demonstration of the key results.
 
