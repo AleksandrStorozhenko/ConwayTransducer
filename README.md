@@ -67,4 +67,4 @@ For questions or detailed discussions, contact us via the repository’s issue t
 
 # References
 
-This repository is based on the theoretical framework presented in the paper "Conway’s Cosmological Theorem and Automata Theory". We encourage readers interested in the detailed proofs and theoretical background to consult the original paper for a deeper understanding.
+This repository is based on the theoretical framework presented in the paper "Conway’s Cosmological Theorem and Automata Theory" (available on [arXiv](https://arxiv.org/abs/2409.20341v1)). We encourage readers interested in the detailed proofs and theoretical background to consult the original paper for a deeper understanding.
